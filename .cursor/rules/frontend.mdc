@@ -1,0 +1,28 @@
+---
+description: Frontend (React/Vite/TypeScript/Tailwind) coding conventions for Guardian AI
+globs: apps/frontend/**/*.{ts,tsx},apps/frontend/**/*.{ts,tsx},apps/frontend/**/*.ts apps/frontend/**/*.tsx
+alwaysApply: false
+---
+# Guardian AI — Frontend Rules
+
+- Use React, Vite, TypeScript, and Tailwind CSS — the stack is already decided, do not
+  introduce alternatives.
+- Never use the `any` type. Use precise types/interfaces for all props, state, and API
+  data.
+- Keep business logic and severity/status/decision calculations in the backend. The
+  frontend only renders what the API returns — never recompute or override severity,
+  classification, or the final decision client-side.
+- Use typed API response models (mirrored or generated from the backend schemas) for all
+  data coming from the API client.
+- Keep components small and presentational; extract a component if it grows beyond one
+  clear rendering responsibility.
+- Avoid unnecessary state-management libraries (Redux, Zustand, etc.) — local component
+  state and props are sufficient for this scope.
+- Avoid Next.js-specific patterns (file-based routing, SSR/API routes, `getServerSideProps`,
+  etc.) — this is a Vite SPA.
+- Keep the UI focused on the single review workflow (submit review → view result). Do not
+  add extra screens, navigation, or history views.
+- Provide accessible labels (e.g. `aria-label`, associated `<label>` elements) and visible
+  loading/error states for every user-triggered action.
+- Avoid adding features outside the documented MVP (see `docs/ROADMAP.md`); if unsure
+  whether something is in scope, check the roadmap before building it.

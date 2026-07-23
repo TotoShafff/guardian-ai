@@ -1,0 +1,18 @@
+---
+globs: apps/backend/**/*.py
+alwaysApply: false
+---
+# Guardian AI — Backend Rules
+
+- Use Python type hints on all function signatures and public class attributes.
+- Keep domain models (`domain/`) independent of FastAPI, SQLAlchemy, and any provider SDKs — no framework or infrastructure imports there.
+- Keep HTTP concerns (routing, request/response schemas, status codes) inside the API layer (`api/`) only.
+- Keep persistence concerns (queries, ORM mapping, sessions) inside the persistence layer (`persistence/`) only.
+- Keep LangGraph orchestration (graph definition, node wiring, workflow coordination) inside the orchestrator layer (`orchestrator/`) only.
+- Domain business rules belong in `domain/`; workflow coordination belongs in `orchestrator/`.
+- Keep provider-specific imports and logic (OpenAI, Anthropic, Gemini SDKs, etc.) inside their respective adapters under `providers/`. Nothing outside `providers/` may import a vendor SDK directly.
+- Tool adapters (`tools/`) must return normalized `Evidence` objects, never raw subprocess output. Parsing and normalization happen inside the adapter.
+- Use explicit timeouts and clear error handling for subprocess calls (deterministic tools) and external provider calls. A failure must degrade the affected evidence to an "unavailable" state instead of crashing the review.
+- Avoid hidden business logic in framework hooks (FastAPI dependencies, ORM event listeners, etc.).
+- Write tests for domain logic and evidence normalization/classification rules. Mock tool adapters and AI providers in unit tests.
+- Prefer small, single-responsibility functions with explicit dependencies (dependency injection over global state).FF

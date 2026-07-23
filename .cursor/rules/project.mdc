@@ -1,0 +1,35 @@
+---
+description: Guardian AI project-wide conventions and scope guardrails
+alwaysApply: true
+---
+
+# Guardian AI — Project Rules
+
+Guardian AI is a **focused technical-challenge prototype**: a functional demo of an
+agentic AI code-review system, not a production platform. Small, explainable scope beats
+breadth or polish.
+
+- Before implementing any significant change, read the relevant parts of
+  `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`, and `docs/ROADMAP.md`. Do not guess at
+  architecture that is already documented.
+- Preserve the documented scope. Do not expand capabilities, add endpoints/screens, or
+  add tools beyond what `docs/ARCHITECTURE.md` and `docs/ROADMAP.md` describe.
+- Prefer the simplest implementation that is still explainable in a short presentation
+  over a more "impressive" but harder-to-justify one.
+- Never introduce undocumented technologies or features. In particular, never add:
+  Redis, Kubernetes, a microservices split, RAG, vector databases, PyTorch or model
+  training, authentication/authorization, CI/CD pipeline integration, or an asynchronous
+  job queue. These are explicit non-goals.
+- Keep all provider-specific AI logic (auth, request/response shape, prompt formatting)
+  strictly inside provider adapters under `providers/`. Orchestrator and Decision Agent
+  code must depend only on the `AIProvider` interface.
+- Keep deterministic evidence (Ruff, Pytest, ESLint, etc.) and semantic evidence (LLM)
+  clearly separate in code and data, merging only through the common `Evidence` shape.
+  The system must never rely on the LLM alone.
+- Do not modify files unrelated to the current task. Keep diffs scoped to what was asked.
+- If an architectural deviation seems necessary, explain the reasoning and trade-off
+  before implementing it — do not silently diverge from the documented design.
+- Use English for all code, identifiers, comments, commit messages, and technical
+  documentation.
+- Update `docs/TASKS.md` only when a task is genuinely completed and verified — do not
+  check off tasks speculatively or in advance.
