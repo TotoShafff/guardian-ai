@@ -45,7 +45,7 @@ time pressure · **[COULD]** only if time remains.
 - [ ] **[MUST]** Create the backend package layout (`api/`, `orchestrator/`, `tools/`,
   `providers/`, `domain/`, `persistence/`) with empty `__init__.py` files. *Done when the
   layout matches `docs/ARCHITECTURE.md` Section 10.*
-- [ ] **[MUST]** Bootstrap the FastAPI application instance (`api/main.py` or equivalent).
+- [x] **[MUST]** Bootstrap the FastAPI application instance (`api/main.py` or equivalent).
   *Done when `uvicorn` starts the app locally and serves the OpenAPI docs page.*
 - [ ] **[MUST]** Implement the configuration/settings module reading environment variables
   (DB URL, AI provider selection, provider API key, tool timeouts). *Done when settings

@@ -1,0 +1,15 @@
+fastapi
+uvicorn
+langgraph
+sqlalchemy
+psycopg[binary]
+pydantic-settings
+python-dotenv
+alembic
+
+[dev]
+pytest
+ruff
+mypy
+httpx
+pytest-cov
