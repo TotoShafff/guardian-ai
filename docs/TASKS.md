@@ -194,7 +194,7 @@ time pressure · **[COULD]** only if time remains.
 - [ ] **[MUST]** Implement the "auto-fixable finding" conditional branch. *Done when a
   finding flagged as fixable routes to the fix-proposal path and a non-fixable finding
   routes directly to the Decision Agent.*
-- [ ] **[MUST]** Implement the fix-proposal flow calling `AIProvider.propose_fix()` for an
+- [x] **[MUST]** Implement the fix-proposal flow calling `AIProvider.propose_fix()` for an
   auto-fixable finding. *Done when it returns a patch candidate for the Stage 4 fixable
   defect using `MockProvider`.*
 - [ ] **[MUST]** Implement the Validation Agent: apply the proposed patch in an isolated
@@ -204,7 +204,7 @@ time pressure · **[COULD]** only if time remains.
 - [ ] **[MUST]** Implement the bounded fix-and-validate loop with a fixed attempt limit
   (per ADR-014). *Done when the loop stops after the configured number of attempts even if
   validation keeps failing, without hanging or erroring.*
-- [ ] **[MUST]** Implement the Decision Agent consolidating all evidence into status,
+- [x] **[MUST]** Implement the Decision Agent consolidating all evidence into status,
   blocking/non-blocking findings, suggested fixes, validation results, and rationale.
   *Done when it produces a single structured decision object from a fixed sample evidence
   set, covered by a unit test.*
