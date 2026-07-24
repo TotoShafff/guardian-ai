@@ -98,7 +98,7 @@ time pressure · **[COULD]** only if time remains.
 - [ ] **[MUST]** Define the deterministic tool adapter interface (a base class/protocol
   with a `run(target) -> list[Evidence]` contract). *Done when at least one adapter can be
   implemented against it without ad-hoc changes to the interface.*
-- [ ] **[MUST]** Implement the Ruff adapter: run Ruff as a subprocess against a target
+- [x] **[MUST]** Implement the Ruff adapter: run Ruff as a subprocess against a target
   path, parse its output. *Done when running it against a file with a known lint violation
   returns exactly the expected `Evidence` item(s).*
 - [ ] **[MUST]** Implement the Pytest adapter: run Pytest as a subprocess against the
