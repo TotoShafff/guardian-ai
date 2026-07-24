@@ -58,7 +58,7 @@ time pressure · **[COULD]** only if time remains.
 
 ## Stage 2 — Database and persistence
 
-- [ ] **[MUST]** Implement the PostgreSQL connection (engine/session factory) using the
+- [x] **[MUST]** Implement the PostgreSQL connection (engine/session factory) using the
   configuration from Stage 1. *Done when a connection can be opened against a running
   PostgreSQL instance using settings from environment variables.*
 - [ ] **[MUST]** Set up the migration tool (e.g. Alembic) and generate the initial
