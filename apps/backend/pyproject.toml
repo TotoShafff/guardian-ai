@@ -31,3 +31,8 @@ dev = [
 
 [tool.setuptools.packages.find]
 include = ["app*"]
+
+[tool.ruff.lint.flake8-bugbear]
+# `Depends(...)` as an argument default is FastAPI's documented dependency
+# injection idiom, not the mutable-default-argument bug B008 warns about.
+extend-immutable-calls = ["fastapi.Depends"]

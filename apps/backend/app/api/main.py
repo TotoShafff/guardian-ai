@@ -2,6 +2,8 @@
 
 from fastapi import FastAPI
 
+from app.api.reviews import router as reviews_router
+
 app = FastAPI(
     title="Guardian AI API",
     version="0.1.0",
@@ -10,6 +12,8 @@ app = FastAPI(
         "deterministic tool evidence with semantic analysis."
     ),
 )
+
+app.include_router(reviews_router, prefix="/api")
 
 
 @app.get("/")
