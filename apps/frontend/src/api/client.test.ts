@@ -5,8 +5,24 @@ import type { ReviewCreateRequest, ReviewResponse } from './types'
 
 const REQUEST_PAYLOAD: ReviewCreateRequest = {
   target_reference: 'demo/checkout-review',
-  target_path: './sample_project',
-  code: 'def add(a, b):\n    return a + b\n',
+  target_path: './examples/ecommerce',
+  code: `from decimal import Decimal
+
+from ecommerce.cart import Cart
+from ecommerce.inventory import Inventory
+
+
+def checkout_total(
+    cart: Cart,
+    inventory: Inventory,
+    discount_percent: Decimal,
+) -> Decimal:
+    for item in cart.items:
+        inventory.reserve(item.product_id, item.quantity)
+
+    subtotal = cart.subtotal()
+    return subtotal - ((subtotal * discount_percent) / Decimal(100))
+`,
 }
 
 function jsonResponse(body: unknown, init: ResponseInit = {}): Response {

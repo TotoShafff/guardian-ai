@@ -4,11 +4,18 @@ import type { ReviewCreateRequest } from '../api/types'
 
 const DEFAULT_TARGET_REFERENCE = 'demo/checkout-review'
 const DEFAULT_TARGET_PATH = './examples/ecommerce'
-const DEFAULT_CODE = `import os
+const DEFAULT_CODE = `from decimal import Decimal
+
+from ecommerce.cart import Cart
+from ecommerce.inventory import Inventory
 
 
-def add(a, b):
-    return a + b
+def checkout_total(cart: Cart, inventory: Inventory, discount_percent: Decimal) -> Decimal:
+    for item in cart.items:
+        inventory.reserve(item.product_id, item.quantity)
+
+    subtotal = cart.subtotal()
+    return subtotal - ((subtotal * discount_percent) / Decimal(100))
 `
 
 interface ReviewFormProps {

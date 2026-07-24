@@ -29,10 +29,10 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: /run review/i }))
 
     await waitFor(() => expect(createReviewMock).toHaveBeenCalledTimes(1))
-    expect(createReviewMock.mock.calls[0][0]).toMatchObject({
-      target_reference: expect.any(String),
-      target_path: expect.any(String),
-      code: expect.any(String),
+    expect(createReviewMock).toHaveBeenCalledWith({
+      target_reference: 'demo/checkout-review',
+      target_path: './examples/ecommerce',
+      code: expect.stringContaining('checkout_total'),
     })
   })
 
