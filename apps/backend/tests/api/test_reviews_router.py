@@ -29,7 +29,8 @@ from app.domain.models import (
     ValidationResult,
     ValidationStatus,
 )
-from app.services.review_service import ReviewRunResult, ReviewService
+from app.persistence.repositories import ReviewResult
+from app.services.review_service import ReviewService
 
 _VALID_REQUEST_BODY = {
     "target_reference": "feature/checkout-fix",
@@ -65,7 +66,7 @@ def _make_review(**overrides: object) -> Review:
     return Review(**defaults)  # type: ignore[arg-type]
 
 
-def _make_run_result(review: Review) -> ReviewRunResult:
+def _make_review_result(review: Review) -> ReviewResult:
     evidence = Evidence(
         review_id=review.id,
         source=EvidenceSource.RUFF,
@@ -97,24 +98,26 @@ def _make_run_result(review: Review) -> ReviewRunResult:
         non_blocking_findings=(finding,),
         fix_attempts=(fix_attempt,),
     )
-    workflow_state = {
-        "review": review,
-        "target_path": Path("./sample_project"),
-        "code": _VALID_REQUEST_BODY["code"],
-        "evidence": (evidence,),
-        "findings": (finding,),
-        "fix_attempts": (fix_attempt,),
-        "decision": decision,
-        "error": None,
-    }
-    return ReviewRunResult(review=review, workflow_state=workflow_state)
+    return ReviewResult(
+        review=review,
+        evidence=(evidence,),
+        findings=(finding,),
+        fix_attempts=(fix_attempt,),
+        decision=decision,
+    )
+
+
+def _make_empty_review_result(review: Review) -> ReviewResult:
+    return ReviewResult(
+        review=review, evidence=(), findings=(), fix_attempts=(), decision=None
+    )
 
 
 def test_post_reviews_returns_201(
     client: TestClient, mock_review_service: MagicMock
 ) -> None:
     review = _make_review()
-    mock_review_service.run_review.return_value = _make_run_result(review)
+    mock_review_service.run_review.return_value = _make_review_result(review)
 
     response = client.post("/api/reviews", json=_VALID_REQUEST_BODY)
 
@@ -138,7 +141,7 @@ def test_post_reviews_response_contains_nested_workflow_output_fields(
     client: TestClient, mock_review_service: MagicMock
 ) -> None:
     review = _make_review()
-    mock_review_service.run_review.return_value = _make_run_result(review)
+    mock_review_service.run_review.return_value = _make_review_result(review)
 
     response = client.post("/api/reviews", json=_VALID_REQUEST_BODY)
 
@@ -163,7 +166,7 @@ def test_post_reviews_delegates_to_the_service_with_request_fields(
     client: TestClient, mock_review_service: MagicMock
 ) -> None:
     review = _make_review()
-    mock_review_service.run_review.return_value = _make_run_result(review)
+    mock_review_service.run_review.return_value = _make_review_result(review)
 
     client.post("/api/reviews", json=_VALID_REQUEST_BODY)
 
@@ -178,7 +181,7 @@ def test_get_review_returns_200_for_an_existing_review(
     client: TestClient, mock_review_service: MagicMock
 ) -> None:
     review = _make_review()
-    mock_review_service.get_review.return_value = review
+    mock_review_service.get_review.return_value = _make_empty_review_result(review)
 
     response = client.get(f"/api/reviews/{review.id}")
 
@@ -189,6 +192,26 @@ def test_get_review_returns_200_for_an_existing_review(
     assert body["findings"] == []
     assert body["fix_attempts"] == []
     assert body["decision"] is None
+
+
+def test_get_review_returns_nested_persisted_workflow_output(
+    client: TestClient, mock_review_service: MagicMock
+) -> None:
+    review = _make_review()
+    mock_review_service.get_review.return_value = _make_review_result(review)
+
+    response = client.get(f"/api/reviews/{review.id}")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body["evidence"]) == 1
+    assert body["evidence"][0]["source"] == "ruff"
+    assert len(body["findings"]) == 1
+    assert body["findings"][0]["title"] == "Unused import"
+    assert len(body["fix_attempts"]) == 1
+    assert body["fix_attempts"][0]["validation_results"][0]["status"] == "passed"
+    assert body["decision"]["status"] == review.status.value
+    assert body["decision"]["non_blocking_findings"][0]["title"] == "Unused import"
 
 
 def test_get_review_returns_404_for_an_unknown_review(
@@ -206,7 +229,7 @@ def test_get_review_delegates_to_the_service_with_the_review_id(
     client: TestClient, mock_review_service: MagicMock
 ) -> None:
     review = _make_review()
-    mock_review_service.get_review.return_value = review
+    mock_review_service.get_review.return_value = _make_empty_review_result(review)
 
     client.get(f"/api/reviews/{review.id}")
 

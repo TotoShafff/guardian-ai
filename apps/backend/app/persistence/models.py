@@ -1,16 +1,24 @@
 """SQLAlchemy ORM models for the Guardian AI backend.
 
 Defines the persistence schema (`reviews`, `evidence`, `findings`,
-`finding_evidence`, `fix_attempts`, `validation_results`, `decisions`)
-described in `docs/ARCHITECTURE.md` Section 12, using SQLAlchemy 2.x typed
-declarative mappings. This module only defines table structure — no
-repositories, no conversion to/from the domain models in `app.domain.models`,
-and no migrations (see `docs/ROADMAP.md` for when those are added).
+`finding_evidence`, `fix_attempts`, `validation_results`, `decisions`,
+`decision_findings`, `decision_fix_attempts`) described in
+`docs/ARCHITECTURE.md` Section 12, using SQLAlchemy 2.x typed declarative
+mappings. This module only defines table structure — no repositories, no
+conversion to/from the domain models in `app.domain.models`, and no
+migrations (see `apps/backend/alembic/versions/`).
 
 Enum columns reuse the domain enums (`EvidenceSource`, `EvidenceSeverity`,
 `ReviewStatus`, `ValidationStatus`) purely as the set of allowed string
 values for storage; no domain validation logic is duplicated here beyond
 the database constraints explicitly required for data integrity.
+
+Every table whose rows must be reconstructed back into an ordered domain
+tuple (`evidence`, `findings`, `finding_evidence`, `fix_attempts`,
+`validation_results`, `decision_findings`, `decision_fix_attempts`) has an
+explicit `order_index` column, and the corresponding `relationship()` is
+declared with `order_by=...` so simply reading the relationship yields rows
+in their original tuple order — no separate ordering query is needed.
 """
 
 from datetime import UTC, datetime
@@ -67,11 +75,13 @@ class ReviewModel(Base):
         "EvidenceModel",
         back_populates="review",
         cascade="all, delete-orphan",
+        order_by="EvidenceModel.order_index",
     )
     findings: Mapped[list["FindingModel"]] = relationship(
         "FindingModel",
         back_populates="review",
         cascade="all, delete-orphan",
+        order_by="FindingModel.order_index",
     )
     decision: Mapped["DecisionModel | None"] = relationship(
         "DecisionModel",
@@ -144,6 +154,8 @@ class EvidenceModel(Base):
         nullable=False,
         default=_utc_now,
     )
+    #: Position of this item within its review's `evidence` tuple.
+    order_index: Mapped[int] = mapped_column(nullable=False)
 
     review: Mapped["ReviewModel"] = relationship(
         "ReviewModel", back_populates="evidence"
@@ -186,6 +198,8 @@ class FindingModel(Base):
         nullable=False,
         default=_utc_now,
     )
+    #: Position of this finding within its review's `findings` tuple.
+    order_index: Mapped[int] = mapped_column(nullable=False)
 
     review: Mapped["ReviewModel"] = relationship(
         "ReviewModel", back_populates="findings"
@@ -194,11 +208,13 @@ class FindingModel(Base):
         "EvidenceModel",
         secondary="finding_evidence",
         back_populates="findings",
+        order_by="FindingEvidenceModel.order_index",
     )
     fix_attempts: Mapped[list["FixAttemptModel"]] = relationship(
         "FixAttemptModel",
         back_populates="finding",
         cascade="all, delete-orphan",
+        order_by="FixAttemptModel.order_index",
     )
 
 
@@ -217,6 +233,8 @@ class FindingEvidenceModel(Base):
         ForeignKey("evidence.id", ondelete="CASCADE"),
         primary_key=True,
     )
+    #: Position of `evidence_id` within `finding_id`'s `evidence_ids` tuple.
+    order_index: Mapped[int] = mapped_column(nullable=False)
 
 
 class FixAttemptModel(Base):
@@ -244,6 +262,10 @@ class FixAttemptModel(Base):
         nullable=False,
         default=_utc_now,
     )
+    #: Position of this attempt within its *review's* full `fix_attempts`
+    #: tuple (i.e. across all findings, not just this one) — see
+    #: `ReviewWorkflowState.fix_attempts` / `Decision.fix_attempts`.
+    order_index: Mapped[int] = mapped_column(nullable=False)
 
     finding: Mapped["FindingModel"] = relationship(
         "FindingModel", back_populates="fix_attempts"
@@ -252,6 +274,7 @@ class FixAttemptModel(Base):
         "ValidationResultModel",
         back_populates="fix_attempt",
         cascade="all, delete-orphan",
+        order_by="ValidationResultModel.order_index",
     )
 
 
@@ -280,6 +303,8 @@ class ValidationResultModel(Base):
     )
     tool: Mapped[str] = mapped_column(nullable=False)
     message: Mapped[str] = mapped_column(Text, nullable=False)
+    #: Position of this result within its fix attempt's `validation_results` tuple.
+    order_index: Mapped[int] = mapped_column(nullable=False)
 
     fix_attempt: Mapped["FixAttemptModel"] = relationship(
         "FixAttemptModel", back_populates="validation_results"
@@ -311,3 +336,72 @@ class DecisionModel(Base):
     review: Mapped["ReviewModel"] = relationship(
         "ReviewModel", back_populates="decision"
     )
+    #: Which findings this decision consolidated, and whether each is blocking.
+    finding_links: Mapped[list["DecisionFindingModel"]] = relationship(
+        "DecisionFindingModel",
+        back_populates="decision",
+        cascade="all, delete-orphan",
+        order_by="DecisionFindingModel.order_index",
+    )
+    #: Which fix attempts this decision consolidated, across all findings.
+    fix_attempt_links: Mapped[list["DecisionFixAttemptModel"]] = relationship(
+        "DecisionFixAttemptModel",
+        back_populates="decision",
+        cascade="all, delete-orphan",
+        order_by="DecisionFixAttemptModel.order_index",
+    )
+
+
+class DecisionFindingModel(Base):
+    """Links a `Decision` to one finding it consolidated, blocking or not.
+
+    Persisted explicitly (rather than re-derived from `FindingModel.severity`
+    at read time) so a decision's own recorded output stays correct even if
+    the classification rules that produced it later change.
+    """
+
+    __tablename__ = "decision_findings"
+
+    decision_review_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("decisions.review_id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    finding_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("findings.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    #: True for `Decision.blocking_findings`, False for `non_blocking_findings`.
+    is_blocking: Mapped[bool] = mapped_column(nullable=False)
+    #: Position within whichever of the two groups this link belongs to.
+    order_index: Mapped[int] = mapped_column(nullable=False)
+
+    decision: Mapped["DecisionModel"] = relationship(
+        "DecisionModel", back_populates="finding_links"
+    )
+    finding: Mapped["FindingModel"] = relationship("FindingModel")
+
+
+class DecisionFixAttemptModel(Base):
+    """Links a `Decision` to one fix attempt it consolidated."""
+
+    __tablename__ = "decision_fix_attempts"
+
+    decision_review_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("decisions.review_id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    fix_attempt_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("fix_attempts.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    #: Position within the decision's full `fix_attempts` tuple.
+    order_index: Mapped[int] = mapped_column(nullable=False)
+
+    decision: Mapped["DecisionModel"] = relationship(
+        "DecisionModel", back_populates="fix_attempt_links"
+    )
+    fix_attempt: Mapped["FixAttemptModel"] = relationship("FixAttemptModel")

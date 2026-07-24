@@ -4,9 +4,11 @@ These are dedicated request/response models for the HTTP boundary — they
 never expose the domain dataclasses (`app.domain.models`) directly as
 FastAPI schemas, per `docs/ARCHITECTURE.md` Section 10 and
 `.cursor/rules/backend.mdc` ("Keep HTTP concerns ... inside the API layer
-only"). Each response schema has a `from_domain`/`from_review`/
-`from_run_result` constructor performing the one-way domain -> schema
-translation; nothing here is ever converted back into a domain object.
+only"). Each response schema has a `from_domain`/`from_result` constructor
+performing the one-way domain -> schema translation; nothing here is ever
+converted back into a domain object. `ReviewResponse.from_result()` builds
+from `app.persistence.repositories.ReviewResult`, the same complete-output
+shape for both `POST` and `GET`.
 """
 
 from datetime import datetime
@@ -21,12 +23,11 @@ from app.domain.models import (
     EvidenceSource,
     Finding,
     FixAttempt,
-    Review,
     ReviewStatus,
     ValidationResult,
     ValidationStatus,
 )
-from app.services.review_service import ReviewRunResult
+from app.persistence.repositories import ReviewResult
 
 
 class ReviewCreateRequest(BaseModel):
@@ -185,11 +186,11 @@ class DecisionResponse(BaseModel):
 class ReviewResponse(BaseModel):
     """API representation of a `Review`, its workflow outputs, and its `Decision`.
 
-    `evidence`, `findings`, and `fix_attempts` are populated directly from
-    the final LangGraph workflow state right after `POST /api/reviews` runs
-    it (see `from_run_result`); none of that is persisted yet (only
-    `Review` itself is — see `docs/ARCHITECTURE.md` Section 12), so
-    `GET /api/reviews/{id}` (see `from_review`) always returns them empty.
+    Built via `from_result()` from a `ReviewResult` — the complete
+    persisted output for a review — so `POST /api/reviews` (right after the
+    graph finishes) and `GET /api/reviews/{id}` (after loading persisted
+    output) return the same shape, with `evidence`, `findings`,
+    `fix_attempts`, and `decision` fully populated in both cases.
     """
 
     id: UUID
@@ -204,33 +205,30 @@ class ReviewResponse(BaseModel):
     error: str | None = None
 
     @classmethod
-    def from_review(cls, review: Review) -> "ReviewResponse":
-        """Build a response from a persisted `Review` alone (used by `GET`)."""
-        return cls(
-            id=review.id,
-            target_reference=review.target_reference,
-            status=review.status,
-            created_at=review.created_at,
-            updated_at=review.completed_at,
-        )
+    def from_result(cls, result: ReviewResult) -> "ReviewResponse":
+        """Build a response from a complete persisted `ReviewResult`.
 
-    @classmethod
-    def from_run_result(cls, result: ReviewRunResult) -> "ReviewResponse":
-        """Build a response from a freshly completed run (used by `POST`)."""
+        Used by both `POST` (right after a run completes) and `GET` (after
+        loading persisted output), so the two endpoints share one response
+        shape. `error` is always `None`: the workflow does not yet persist a
+        failure message (see `docs/ROADMAP.md`).
+        """
         review = result.review
-        state = result.workflow_state
-        decision = state["decision"]
         return cls(
             id=review.id,
             target_reference=review.target_reference,
             status=review.status,
             created_at=review.created_at,
             updated_at=review.completed_at,
-            evidence=[EvidenceResponse.from_domain(item) for item in state["evidence"]],
-            findings=[FindingResponse.from_domain(item) for item in state["findings"]],
+            evidence=[EvidenceResponse.from_domain(item) for item in result.evidence],
+            findings=[FindingResponse.from_domain(item) for item in result.findings],
             fix_attempts=[
-                FixAttemptResponse.from_domain(item) for item in state["fix_attempts"]
+                FixAttemptResponse.from_domain(item) for item in result.fix_attempts
             ],
-            decision=DecisionResponse.from_domain(decision) if decision else None,
-            error=state["error"],
+            decision=(
+                DecisionResponse.from_domain(result.decision)
+                if result.decision
+                else None
+            ),
+            error=None,
         )

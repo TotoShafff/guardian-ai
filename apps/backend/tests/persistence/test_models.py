@@ -13,6 +13,8 @@ from sqlalchemy.dialects.postgresql import UUID as PGUUID
 
 from app.persistence.database import Base
 from app.persistence.models import (
+    DecisionFindingModel,
+    DecisionFixAttemptModel,
     DecisionModel,
     EvidenceModel,
     FindingEvidenceModel,
@@ -50,9 +52,27 @@ def test_expected_tables_exist() -> None:
         "fix_attempts",
         "validation_results",
         "decisions",
+        "decision_findings",
+        "decision_fix_attempts",
     }
 
     assert expected_tables.issubset(Base.metadata.tables.keys())
+
+
+def test_ordered_tables_have_an_order_index_column() -> None:
+    ordered_tables = (
+        "evidence",
+        "findings",
+        "finding_evidence",
+        "fix_attempts",
+        "validation_results",
+        "decision_findings",
+        "decision_fix_attempts",
+    )
+
+    for table_name in ordered_tables:
+        table = Base.metadata.tables[table_name]
+        assert table.columns["order_index"].nullable is False
 
 
 def test_reviews_table_primary_key_and_columns() -> None:
@@ -126,6 +146,31 @@ def test_decisions_table_primary_key_is_also_a_foreign_key() -> None:
     assert ("review_id", "reviews", "id") in _foreign_key_targets("decisions")
 
 
+def test_decision_findings_table_composite_key_and_foreign_keys() -> None:
+    table = Base.metadata.tables["decision_findings"]
+
+    assert set(table.primary_key.columns.keys()) == {
+        "decision_review_id",
+        "finding_id",
+    }
+    targets = _foreign_key_targets("decision_findings")
+    assert ("decision_review_id", "decisions", "review_id") in targets
+    assert ("finding_id", "findings", "id") in targets
+    assert table.columns["is_blocking"].nullable is False
+
+
+def test_decision_fix_attempts_table_composite_key_and_foreign_keys() -> None:
+    table = Base.metadata.tables["decision_fix_attempts"]
+
+    assert set(table.primary_key.columns.keys()) == {
+        "decision_review_id",
+        "fix_attempt_id",
+    }
+    targets = _foreign_key_targets("decision_fix_attempts")
+    assert ("decision_review_id", "decisions", "review_id") in targets
+    assert ("fix_attempt_id", "fix_attempts", "id") in targets
+
+
 def test_review_model_relationships() -> None:
     relationship_names = sa_inspect(ReviewModel).relationships.keys()
 
@@ -144,10 +189,17 @@ def test_fix_attempt_model_relationships() -> None:
     assert {"finding", "validation_results"}.issubset(relationship_names)
 
 
+def test_decision_model_relationships() -> None:
+    relationship_names = sa_inspect(DecisionModel).relationships.keys()
+
+    assert {"review", "finding_links", "fix_attempt_links"}.issubset(relationship_names)
+
+
 def test_owned_child_relationships_cascade_delete_orphan() -> None:
     review_mapper = sa_inspect(ReviewModel)
     finding_mapper = sa_inspect(FindingModel)
     fix_attempt_mapper = sa_inspect(FixAttemptModel)
+    decision_mapper = sa_inspect(DecisionModel)
 
     assert "delete-orphan" in review_mapper.relationships["evidence"].cascade
     assert "delete-orphan" in review_mapper.relationships["findings"].cascade
@@ -157,6 +209,23 @@ def test_owned_child_relationships_cascade_delete_orphan() -> None:
         "delete-orphan"
         in fix_attempt_mapper.relationships["validation_results"].cascade
     )
+    assert "delete-orphan" in decision_mapper.relationships["finding_links"].cascade
+    assert "delete-orphan" in decision_mapper.relationships["fix_attempt_links"].cascade
+
+
+def test_ordered_relationships_declare_an_explicit_order_by() -> None:
+    review_mapper = sa_inspect(ReviewModel)
+    finding_mapper = sa_inspect(FindingModel)
+    fix_attempt_mapper = sa_inspect(FixAttemptModel)
+    decision_mapper = sa_inspect(DecisionModel)
+
+    assert review_mapper.relationships["evidence"].order_by is not False
+    assert review_mapper.relationships["findings"].order_by is not False
+    assert finding_mapper.relationships["evidence"].order_by is not False
+    assert finding_mapper.relationships["fix_attempts"].order_by is not False
+    assert fix_attempt_mapper.relationships["validation_results"].order_by is not False
+    assert decision_mapper.relationships["finding_links"].order_by is not False
+    assert decision_mapper.relationships["fix_attempt_links"].order_by is not False
 
 
 def test_all_orm_models_share_the_declarative_base() -> None:
@@ -168,5 +237,7 @@ def test_all_orm_models_share_the_declarative_base() -> None:
         FixAttemptModel,
         ValidationResultModel,
         DecisionModel,
+        DecisionFindingModel,
+        DecisionFixAttemptModel,
     ):
         assert issubclass(model, Base)

@@ -39,6 +39,17 @@ def test_initial_revision_exists_and_has_no_parent() -> None:
     assert initial_revision.revision == "4e6dd0965bd5"
 
 
+def test_workflow_output_ordering_revision_follows_the_initial_schema() -> None:
+    config = Config(str(_ALEMBIC_INI))
+    script_directory = ScriptDirectory.from_config(config)
+
+    revision = script_directory.get_revision("7d72d643d597")
+
+    assert revision is not None
+    assert revision.down_revision == "4e6dd0965bd5"
+    assert script_directory.get_current_head() == "7d72d643d597"
+
+
 def test_migration_upgrades_and_downgrades_cleanly(tmp_path: Path) -> None:
     scratch_db = tmp_path / "guardian_ai_migration_check.db"
     env = {**os.environ, "DATABASE_URL": f"sqlite:///{scratch_db}"}

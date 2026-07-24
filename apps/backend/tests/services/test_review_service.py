@@ -12,10 +12,19 @@ from uuid import uuid4
 
 import pytest
 
-from app.domain.models import Decision, Review, ReviewStatus
+from app.domain.models import (
+    Decision,
+    Evidence,
+    EvidenceSeverity,
+    EvidenceSource,
+    Finding,
+    FixAttempt,
+    Review,
+    ReviewStatus,
+)
 from app.orchestrator.state import ReviewWorkflowState
-from app.persistence.repositories import ReviewRepository
-from app.services.review_service import ReviewRunResult, ReviewService
+from app.persistence.repositories import ReviewRepository, ReviewResult
+from app.services.review_service import ReviewService
 
 _TARGET_REFERENCE = "feature/checkout-fix"
 _TARGET_PATH = Path("./sample_project")
@@ -31,14 +40,20 @@ def _make_review(**overrides: object) -> Review:
     return Review(**defaults)  # type: ignore[arg-type]
 
 
-def _make_final_state(review: Review, decision: Decision) -> ReviewWorkflowState:
+def _make_final_state(
+    review: Review,
+    decision: Decision,
+    evidence: tuple[Evidence, ...] = (),
+    findings: tuple[Finding, ...] = (),
+    fix_attempts: tuple[FixAttempt, ...] = (),
+) -> ReviewWorkflowState:
     state: ReviewWorkflowState = {
         "review": review,
         "target_path": _TARGET_PATH,
         "code": _CODE,
-        "evidence": (),
-        "findings": (),
-        "fix_attempts": (),
+        "evidence": evidence,
+        "findings": findings,
+        "fix_attempts": fix_attempts,
         "decision": decision,
         "error": None,
     }
@@ -157,42 +172,104 @@ def test_run_review_saves_the_updated_review_via_the_repository() -> None:
     assert updated_review.completed_at.tzinfo is not None
 
 
-def test_run_review_returns_the_persisted_review_and_final_workflow_state() -> None:
+def test_run_review_persists_the_complete_workflow_output() -> None:
+    saved_review = _make_review()
+    repository = MagicMock(spec=ReviewRepository)
+    repository.add.return_value = saved_review
+    repository.update.side_effect = lambda review: review
+    evidence = (
+        Evidence(
+            review_id=saved_review.id,
+            source=EvidenceSource.RUFF,
+            severity=EvidenceSeverity.BLOCKING,
+            category="F821",
+            message="undefined name",
+        ),
+    )
+    finding = Finding(
+        review_id=saved_review.id,
+        evidence_ids=(evidence[0].id,),
+        severity=EvidenceSeverity.BLOCKING,
+        title="Undefined name",
+        description="`x` is not defined",
+        is_fixable=True,
+    )
+    fix_attempt = FixAttempt(
+        finding_id=finding.id, patch="--- a\n+++ b\n", attempt_number=1
+    )
+    decision = Decision(
+        status=ReviewStatus.BLOCKED,
+        rationale="1 blocking finding.",
+        blocking_findings=(finding,),
+        fix_attempts=(fix_attempt,),
+    )
+    graph = MagicMock()
+    graph.invoke.return_value = _make_final_state(
+        saved_review,
+        decision,
+        evidence=evidence,
+        findings=(finding,),
+        fix_attempts=(fix_attempt,),
+    )
+    service, _, _ = _make_service(repository=repository, graph=graph)
+
+    service.run_review(
+        target_reference=_TARGET_REFERENCE, target_path=_TARGET_PATH, code=_CODE
+    )
+
+    repository.save_workflow_output.assert_called_once_with(
+        review_id=saved_review.id,
+        evidence=evidence,
+        findings=(finding,),
+        fix_attempts=(fix_attempt,),
+        decision=decision,
+    )
+
+
+def test_run_review_returns_the_complete_persisted_result() -> None:
     saved_review = _make_review()
     updated_review = _make_review(id=saved_review.id, status=ReviewStatus.APPROVED)
     repository = MagicMock(spec=ReviewRepository)
     repository.add.return_value = saved_review
     repository.update.return_value = updated_review
     decision = Decision(status=ReviewStatus.APPROVED, rationale="ok")
-    final_state = _make_final_state(saved_review, decision)
     graph = MagicMock()
-    graph.invoke.return_value = final_state
+    graph.invoke.return_value = _make_final_state(saved_review, decision)
     service, _, _ = _make_service(repository=repository, graph=graph)
 
     result = service.run_review(
         target_reference=_TARGET_REFERENCE, target_path=_TARGET_PATH, code=_CODE
     )
 
-    assert isinstance(result, ReviewRunResult)
+    assert isinstance(result, ReviewResult)
     assert result.review is updated_review
-    assert result.workflow_state is final_state
+    assert result.decision is decision
+    assert result.evidence == ()
+    assert result.findings == ()
+    assert result.fix_attempts == ()
 
 
 def test_get_review_delegates_to_the_repository() -> None:
-    review = _make_review()
+    expected = ReviewResult(
+        review=_make_review(),
+        evidence=(),
+        findings=(),
+        fix_attempts=(),
+        decision=None,
+    )
     repository = MagicMock(spec=ReviewRepository)
-    repository.get_by_id.return_value = review
+    repository.get_review_result.return_value = expected
     service, _, _ = _make_service(repository=repository)
 
-    result = service.get_review(review.id)
+    result = service.get_review(expected.review.id)
 
-    repository.get_by_id.assert_called_once_with(review.id)
-    assert result is review
+    repository.get_review_result.assert_called_once_with(expected.review.id)
+    assert result is expected
 
 
 def test_get_review_returns_none_when_the_repository_finds_nothing() -> None:
     repository = MagicMock(spec=ReviewRepository)
-    repository.get_by_id.return_value = None
+    repository.get_review_result.return_value = None
     service, _, _ = _make_service(repository=repository)
 
     result = service.get_review(uuid4())
@@ -217,3 +294,26 @@ def test_run_review_propagates_graph_exceptions_without_updating_the_review() ->
         )
 
     repository.update.assert_not_called()
+    repository.save_workflow_output.assert_not_called()
+
+
+def test_run_review_propagates_persistence_exceptions_from_save_workflow_output() -> (
+    None
+):
+    class _FakePersistenceError(Exception):
+        pass
+
+    saved_review = _make_review()
+    repository = MagicMock(spec=ReviewRepository)
+    repository.add.return_value = saved_review
+    repository.update.side_effect = lambda review: review
+    repository.save_workflow_output.side_effect = _FakePersistenceError("db blew up")
+    decision = Decision(status=ReviewStatus.APPROVED, rationale="ok")
+    graph = MagicMock()
+    graph.invoke.return_value = _make_final_state(saved_review, decision)
+    service, _, _ = _make_service(repository=repository, graph=graph)
+
+    with pytest.raises(_FakePersistenceError, match="db blew up"):
+        service.run_review(
+            target_reference=_TARGET_REFERENCE, target_path=_TARGET_PATH, code=_CODE
+        )

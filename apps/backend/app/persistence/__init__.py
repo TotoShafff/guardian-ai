@@ -2,6 +2,8 @@
 
 from app.persistence.database import Base, SessionLocal, engine, get_db
 from app.persistence.models import (
+    DecisionFindingModel,
+    DecisionFixAttemptModel,
     DecisionModel,
     EvidenceModel,
     FindingEvidenceModel,
@@ -10,10 +12,16 @@ from app.persistence.models import (
     ReviewModel,
     ValidationResultModel,
 )
-from app.persistence.repositories import ReviewNotFoundError, ReviewRepository
+from app.persistence.repositories import (
+    ReviewNotFoundError,
+    ReviewRepository,
+    ReviewResult,
+)
 
 __all__ = [
     "Base",
+    "DecisionFindingModel",
+    "DecisionFixAttemptModel",
     "DecisionModel",
     "EvidenceModel",
     "FindingEvidenceModel",
@@ -22,6 +30,7 @@ __all__ = [
     "ReviewModel",
     "ReviewNotFoundError",
     "ReviewRepository",
+    "ReviewResult",
     "SessionLocal",
     "ValidationResultModel",
     "engine",

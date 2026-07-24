@@ -31,7 +31,7 @@ def create_review(
         target_path=Path(request.target_path),
         code=request.code,
     )
-    return ReviewResponse.from_run_result(result)
+    return ReviewResponse.from_result(result)
 
 
 @router.get("/{review_id}", response_model=ReviewResponse)
@@ -39,11 +39,14 @@ def get_review(
     review_id: UUID,
     review_service: ReviewService = Depends(get_review_service),
 ) -> ReviewResponse:
-    """Return a previously persisted review, or 404 if it does not exist."""
-    review = review_service.get_review(review_id)
-    if review is None:
+    """Return a previously persisted review and its full workflow output.
+
+    Returns 404 if no review with `review_id` exists.
+    """
+    result = review_service.get_review(review_id)
+    if result is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Review not found: {review_id}",
         )
-    return ReviewResponse.from_review(review)
+    return ReviewResponse.from_result(result)

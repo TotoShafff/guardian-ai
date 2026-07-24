@@ -225,7 +225,7 @@ time pressure · **[COULD]** only if time remains.
 - [x] **[MUST]** Implement `POST /reviews` accepting a target/diff reference and
   triggering the LangGraph workflow synchronously. *Done when calling it with the Stage 4
   demo scenario returns a completed decision in the response body.*
-- [ ] **[MUST]** Implement `GET /reviews/{id}` returning a previously persisted review's
+- [x] **[MUST]** Implement `GET /reviews/{id}` returning a previously persisted review's
   full result. *Done when it returns the same decision structure for a review created via
   `POST /reviews`.*
 - [ ] **[MUST]** Define request/response schemas (Pydantic models) matching the Decision

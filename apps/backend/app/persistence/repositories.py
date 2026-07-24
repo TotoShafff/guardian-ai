@@ -1,26 +1,43 @@
-"""SQLAlchemy repository for the `Review` aggregate root.
+"""SQLAlchemy repository for the `Review` aggregate root and its workflow output.
 
-Translates between the framework-independent `Review` domain model
-(`app.domain.models.Review`) and its ORM counterpart (`ReviewModel`), so
-callers (API handlers, orchestrator nodes, tests) work only with the domain
-model at the public boundary and never see SQLAlchemy types. Conversion
-between `Review` and `ReviewModel` is an implementation detail kept private
-to this module.
+Translates between framework-independent domain models
+(`app.domain.models`) and their ORM counterparts (`app.persistence.models`),
+so callers (API handlers, application services, tests) work only with
+domain models and `ReviewResult` at the public boundary and never see
+SQLAlchemy types. Conversion between domain and ORM objects is an
+implementation detail kept private to this module.
 
-`ReviewRepository` receives its `Session` from the caller (see `get_db()` in
-`app.persistence.database`) and never creates, commits, or rolls back a
+`ReviewRepository` receives its `Session` from the caller (see
+`get_db()`/`get_db_session()`) and never creates, commits, or rolls back a
 transaction itself — transaction ownership belongs to whoever owns the
-session (e.g. a FastAPI request handler or a test). Nested evidence,
-findings, decisions, and fix attempts are out of scope for this repository.
+session (e.g. a FastAPI request handler or a test).
 """
 
+from typing import NamedTuple
 from uuid import UUID
 
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
-from app.domain.models import Review
-from app.persistence.models import ReviewModel
+from app.domain.models import (
+    Decision,
+    Evidence,
+    Finding,
+    FixAttempt,
+    Review,
+    ValidationResult,
+)
+from app.persistence.models import (
+    DecisionFindingModel,
+    DecisionFixAttemptModel,
+    DecisionModel,
+    EvidenceModel,
+    FindingEvidenceModel,
+    FindingModel,
+    FixAttemptModel,
+    ReviewModel,
+    ValidationResultModel,
+)
 
 
 class ReviewNotFoundError(Exception):
@@ -29,6 +46,22 @@ class ReviewNotFoundError(Exception):
     def __init__(self, review_id: UUID) -> None:
         super().__init__(f"Review not found: {review_id}")
         self.review_id = review_id
+
+
+class ReviewResult(NamedTuple):
+    """The complete persisted output for one review.
+
+    This is the application-facing shape returned by
+    `ReviewRepository.get_review_result()`: only domain dataclasses, never
+    ORM instances, so callers outside `persistence/` never see SQLAlchemy
+    types.
+    """
+
+    review: Review
+    evidence: tuple[Evidence, ...]
+    findings: tuple[Finding, ...]
+    fix_attempts: tuple[FixAttempt, ...]
+    decision: Decision | None
 
 
 def _to_model(review: Review) -> ReviewModel:
@@ -53,11 +86,126 @@ def _to_domain(model: ReviewModel) -> Review:
     )
 
 
-class ReviewRepository:
-    """Persistence gateway for the `Review` aggregate root.
+def _evidence_to_model(evidence: Evidence, order_index: int) -> EvidenceModel:
+    """Convert a domain `Evidence` into a new, unattached `EvidenceModel`."""
+    return EvidenceModel(
+        id=evidence.id,
+        review_id=evidence.review_id,
+        source=evidence.source,
+        severity=evidence.severity,
+        category=evidence.category,
+        message=evidence.message,
+        file_path=evidence.file_path,
+        line_start=evidence.line_start,
+        line_end=evidence.line_end,
+        suggested_fix=evidence.suggested_fix,
+        confidence=evidence.confidence,
+        created_at=evidence.created_at,
+        order_index=order_index,
+    )
 
-    Contains no business rules — only translation between the domain `Review`
-    model and the `reviews` table via a caller-provided `Session`.
+
+def _evidence_to_domain(model: EvidenceModel) -> Evidence:
+    """Convert a persisted `EvidenceModel` into a domain `Evidence`."""
+    return Evidence(
+        id=model.id,
+        review_id=model.review_id,
+        source=model.source,
+        severity=model.severity,
+        category=model.category,
+        message=model.message,
+        file_path=model.file_path,
+        line_start=model.line_start,
+        line_end=model.line_end,
+        suggested_fix=model.suggested_fix,
+        confidence=model.confidence,
+        created_at=model.created_at,
+    )
+
+
+def _finding_to_model(finding: Finding, order_index: int) -> FindingModel:
+    """Convert a domain `Finding` into a new, unattached `FindingModel`.
+
+    Does not add the `finding_evidence` association rows; the caller adds
+    those separately (see `ReviewRepository.save_workflow_output`).
+    """
+    return FindingModel(
+        id=finding.id,
+        review_id=finding.review_id,
+        severity=finding.severity,
+        title=finding.title,
+        description=finding.description,
+        is_fixable=finding.is_fixable,
+        created_at=finding.created_at,
+        order_index=order_index,
+    )
+
+
+def _finding_to_domain(model: FindingModel) -> Finding:
+    """Convert a persisted `FindingModel` into a domain `Finding`.
+
+    `model.evidence` must already be loaded; its relationship is declared
+    with `order_by=FindingEvidenceModel.order_index`, so iterating it
+    reconstructs `evidence_ids` in the original tuple order.
+    """
+    return Finding(
+        id=model.id,
+        review_id=model.review_id,
+        evidence_ids=tuple(evidence.id for evidence in model.evidence),
+        severity=model.severity,
+        title=model.title,
+        description=model.description,
+        is_fixable=model.is_fixable,
+        created_at=model.created_at,
+    )
+
+
+def _fix_attempt_to_model(fix_attempt: FixAttempt, order_index: int) -> FixAttemptModel:
+    """Convert a domain `FixAttempt` into a new, unattached `FixAttemptModel`.
+
+    Does not add `validation_results` rows; the caller adds those
+    separately (see `ReviewRepository.save_workflow_output`).
+    """
+    return FixAttemptModel(
+        id=fix_attempt.id,
+        finding_id=fix_attempt.finding_id,
+        patch=fix_attempt.patch,
+        attempt_number=fix_attempt.attempt_number,
+        created_at=fix_attempt.created_at,
+        order_index=order_index,
+    )
+
+
+def _fix_attempt_to_domain(model: FixAttemptModel) -> FixAttempt:
+    """Convert a persisted `FixAttemptModel` into a domain `FixAttempt`.
+
+    `model.validation_results` must already be loaded; its relationship is
+    declared with `order_by=ValidationResultModel.order_index`.
+    """
+    return FixAttempt(
+        id=model.id,
+        finding_id=model.finding_id,
+        patch=model.patch,
+        attempt_number=model.attempt_number,
+        validation_results=tuple(
+            _validation_result_to_domain(result) for result in model.validation_results
+        ),
+        created_at=model.created_at,
+    )
+
+
+def _validation_result_to_domain(model: ValidationResultModel) -> ValidationResult:
+    """Convert a persisted `ValidationResultModel` into a domain `ValidationResult`."""
+    return ValidationResult(status=model.status, tool=model.tool, message=model.message)
+
+
+class ReviewRepository:
+    """Persistence gateway for the `Review` aggregate root and its workflow output.
+
+    Contains no business rules — only translation between domain models and
+    the `reviews`/`evidence`/`findings`/`finding_evidence`/`fix_attempts`/
+    `validation_results`/`decisions`/`decision_findings`/
+    `decision_fix_attempts` tables via a caller-provided `Session`.
     """
 
     def __init__(self, session: Session) -> None:
@@ -116,3 +264,192 @@ class ReviewRepository:
 
         self._session.flush()
         return _to_domain(model)
+
+    def save_workflow_output(
+        self,
+        review_id: UUID,
+        evidence: tuple[Evidence, ...],
+        findings: tuple[Finding, ...],
+        fix_attempts: tuple[FixAttempt, ...],
+        decision: Decision | None,
+    ) -> None:
+        """Persist the complete final workflow output for one review.
+
+        Persists `evidence`, `findings` (with their finding-to-evidence
+        associations), `fix_attempts` (with their `validation_results`),
+        and `decision` (with its blocking/non-blocking finding and
+        fix-attempt associations). Every tuple's order is preserved via an
+        explicit `order_index` column on the corresponding row/association.
+        None of the domain objects passed in are mutated. Does not commit
+        or roll back; the caller owns the transaction, and `review_id` must
+        already exist (e.g. via a prior `add()` in the same transaction).
+        """
+        for evidence_index, item in enumerate(evidence):
+            self._session.add(_evidence_to_model(item, evidence_index))
+
+        for finding_index, finding in enumerate(findings):
+            self._session.add(_finding_to_model(finding, finding_index))
+            for association_index, evidence_id in enumerate(finding.evidence_ids):
+                self._session.add(
+                    FindingEvidenceModel(
+                        finding_id=finding.id,
+                        evidence_id=evidence_id,
+                        order_index=association_index,
+                    )
+                )
+
+        for attempt_index, attempt in enumerate(fix_attempts):
+            self._session.add(_fix_attempt_to_model(attempt, attempt_index))
+            for result_index, result in enumerate(attempt.validation_results):
+                self._session.add(
+                    ValidationResultModel(
+                        fix_attempt_id=attempt.id,
+                        status=result.status,
+                        tool=result.tool,
+                        message=result.message,
+                        order_index=result_index,
+                    )
+                )
+
+        if decision is not None:
+            self._session.add(
+                DecisionModel(
+                    review_id=review_id,
+                    status=decision.status,
+                    rationale=decision.rationale,
+                )
+            )
+            for order_index, finding in enumerate(decision.blocking_findings):
+                self._session.add(
+                    DecisionFindingModel(
+                        decision_review_id=review_id,
+                        finding_id=finding.id,
+                        is_blocking=True,
+                        order_index=order_index,
+                    )
+                )
+            for order_index, finding in enumerate(decision.non_blocking_findings):
+                self._session.add(
+                    DecisionFindingModel(
+                        decision_review_id=review_id,
+                        finding_id=finding.id,
+                        is_blocking=False,
+                        order_index=order_index,
+                    )
+                )
+            for order_index, attempt in enumerate(decision.fix_attempts):
+                self._session.add(
+                    DecisionFixAttemptModel(
+                        decision_review_id=review_id,
+                        fix_attempt_id=attempt.id,
+                        order_index=order_index,
+                    )
+                )
+
+        self._session.flush()
+
+    def get_review_result(self, review_id: UUID) -> ReviewResult | None:
+        """Return the complete persisted output for `review_id`, or None if unknown.
+
+        Loads the review together with its evidence, findings (and their
+        evidence associations), fix attempts (and their validation
+        results), and decision in one query using `selectinload`, avoiding
+        N+1 queries. `Decision.blocking_findings`/`non_blocking_findings`/
+        `fix_attempts` are reconstructed by resolving `decision_findings`/
+        `decision_fix_attempts` links against the findings/fix attempts
+        already loaded for this review, so no ORM instance is exposed to
+        the caller — only domain dataclasses.
+        """
+        statement = (
+            select(ReviewModel)
+            .where(ReviewModel.id == review_id)
+            .options(
+                selectinload(ReviewModel.evidence),
+                selectinload(ReviewModel.findings).selectinload(FindingModel.evidence),
+                selectinload(ReviewModel.findings)
+                .selectinload(FindingModel.fix_attempts)
+                .selectinload(FixAttemptModel.validation_results),
+                selectinload(ReviewModel.decision).selectinload(
+                    DecisionModel.finding_links
+                ),
+                selectinload(ReviewModel.decision).selectinload(
+                    DecisionModel.fix_attempt_links
+                ),
+            )
+        )
+        model = self._session.execute(statement).unique().scalar_one_or_none()
+        if model is None:
+            return None
+
+        findings_by_id: dict[UUID, Finding] = {}
+        fix_attempts_by_id: dict[UUID, FixAttempt] = {}
+        fix_attempt_order: dict[UUID, int] = {}
+        findings: list[Finding] = []
+
+        for finding_model in model.findings:
+            finding = _finding_to_domain(finding_model)
+            findings.append(finding)
+            findings_by_id[finding.id] = finding
+
+            for fix_attempt_model in finding_model.fix_attempts:
+                fix_attempt = _fix_attempt_to_domain(fix_attempt_model)
+                fix_attempts_by_id[fix_attempt.id] = fix_attempt
+                fix_attempt_order[fix_attempt.id] = fix_attempt_model.order_index
+
+        # `fix_attempts` must preserve the review-wide order (across all
+        # findings), not the per-finding traversal order above.
+        fix_attempts = tuple(
+            fix_attempts_by_id[attempt_id]
+            for attempt_id in sorted(
+                fix_attempts_by_id, key=lambda attempt_id: fix_attempt_order[attempt_id]
+            )
+        )
+
+        decision = None
+        if model.decision is not None:
+            decision = self._decision_to_domain(
+                model.decision, findings_by_id, fix_attempts_by_id
+            )
+
+        return ReviewResult(
+            review=_to_domain(model),
+            evidence=tuple(_evidence_to_domain(item) for item in model.evidence),
+            findings=tuple(findings),
+            fix_attempts=fix_attempts,
+            decision=decision,
+        )
+
+    @staticmethod
+    def _decision_to_domain(
+        model: DecisionModel,
+        findings_by_id: dict[UUID, Finding],
+        fix_attempts_by_id: dict[UUID, FixAttempt],
+    ) -> Decision:
+        """Reconstruct a domain `Decision` from its model and already-loaded output.
+
+        `findings_by_id`/`fix_attempts_by_id` must contain every finding/fix
+        attempt referenced by `model.finding_links`/`model.fix_attempt_links`
+        (true whenever they come from the same review, as in
+        `get_review_result`); this avoids re-loading or re-converting
+        objects already reconstructed once.
+        """
+        blocking_findings = tuple(
+            findings_by_id[link.finding_id]
+            for link in model.finding_links
+            if link.is_blocking
+        )
+        non_blocking_findings = tuple(
+            findings_by_id[link.finding_id]
+            for link in model.finding_links
+            if not link.is_blocking
+        )
+        fix_attempts = tuple(
+            fix_attempts_by_id[link.fix_attempt_id] for link in model.fix_attempt_links
+        )
+        return Decision(
+            status=model.status,
+            rationale=model.rationale,
+            blocking_findings=blocking_findings,
+            non_blocking_findings=non_blocking_findings,
+            fix_attempts=fix_attempts,
+        )
