@@ -208,6 +208,11 @@ time pressure · **[COULD]** only if time remains.
   blocking/non-blocking findings, suggested fixes, validation results, and rationale.
   *Done when it produces a single structured decision object from a fixed sample evidence
   set, covered by a unit test.*
+- [x] **[MUST]** Implement the initial LangGraph graph wiring (`build_review_graph`)
+  connecting the four existing nodes in a fixed linear order:
+  `collect_evidence -> semantic_analysis -> propose_fixes -> make_decision`. *Done when
+  the compiled graph runs end-to-end with mocked dependencies and produces a complete
+  `Decision`, covered by unit tests.*
 - [ ] **[MUST]** Wire the full LangGraph graph (start → parallel static/semantic evidence →
   merge → classify → conditional fix/validate → decide → persist) per
   `docs/ARCHITECTURE.md` Section 7. *Done when invoking the graph end-to-end with
