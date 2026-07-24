@@ -66,10 +66,10 @@ time pressure · **[COULD]** only if time remains.
   `DecisionModel`) mapping the tables in `docs/ARCHITECTURE.md` Section 12. *Done when
   table names, primary keys, foreign keys, and constraints are verified by metadata-only
   tests, with no live database required.*
-- [ ] **[MUST]** Set up the migration tool (e.g. Alembic) and generate the initial
-  migration for `reviews`, `evidence`, `findings`, `fix_attempts` tables per
-  `docs/ARCHITECTURE.md` Section 12. *Done when the migration applies cleanly to an empty
-  database.*
+- [x] **[MUST]** Set up the migration tool (e.g. Alembic) and generate the initial
+  migration for `reviews`, `evidence`, `findings`, `finding_evidence`, `fix_attempts`,
+  `validation_results`, `decisions` tables per `docs/ARCHITECTURE.md` Section 12. *Done
+  when the migration applies cleanly to an empty database.*
 - [x] **[MUST]** Implement domain models: `Evidence`, `Finding`, `Review`, `Decision` as
   plain Python classes with no framework imports. *Done when each model can be
   instantiated and serialized without importing FastAPI or SQLAlchemy.*
