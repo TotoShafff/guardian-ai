@@ -88,6 +88,7 @@ def _make_nodes(
     pytest_tool: PytestTool | None = None,
     ai_provider: AIProvider | None = None,
     fix_validator: FixValidator | None = None,
+    max_fix_attempts: int = 3,
 ) -> ReviewWorkflowNodes:
     return ReviewWorkflowNodes(
         ruff_tool=ruff_tool if ruff_tool is not None else MagicMock(spec=RuffTool),
@@ -100,7 +101,20 @@ def _make_nodes(
         fix_validator=fix_validator
         if fix_validator is not None
         else MagicMock(spec=FixValidator),
+        max_fix_attempts=max_fix_attempts,
     )
+
+
+def _make_validation_result(
+    status: ValidationStatus, **overrides: object
+) -> ValidationResult:
+    defaults: dict[str, object] = {
+        "status": status,
+        "tool": "mock_validator",
+        "message": "sample validation message",
+    }
+    defaults.update(overrides)
+    return ValidationResult(**defaults)  # type: ignore[arg-type]
 
 
 def test_collect_evidence_calls_ruff_with_target_and_review_id() -> None:
@@ -340,19 +354,6 @@ def test_propose_fixes_calls_provider_only_for_blocking_and_fixable_findings() -
     ai_provider.propose_fix.assert_called_once_with(state["code"], blocking_fixable, 1)
 
 
-def test_propose_fixes_uses_attempt_number_one() -> None:
-    finding = _make_finding(severity=EvidenceSeverity.BLOCKING, is_fixable=True)
-    ai_provider = MagicMock(spec=AIProvider)
-    ai_provider.propose_fix.return_value = "--- patch ---"
-    nodes = _make_nodes(ai_provider=ai_provider)
-    state = _make_state(findings=(finding,))
-
-    nodes.propose_fixes(state)
-
-    _, _, attempt_number = ai_provider.propose_fix.call_args.args
-    assert attempt_number == 1
-
-
 def test_propose_fixes_does_not_call_provider_for_non_blocking_findings() -> None:
     non_blocking = _make_finding(
         severity=EvidenceSeverity.NON_BLOCKING, is_fixable=True
@@ -393,8 +394,11 @@ def test_propose_fixes_creates_a_fix_attempt_for_a_non_empty_patch() -> None:
     assert attempt.attempt_number == 1
 
 
-def test_propose_fixes_skips_empty_patches() -> None:
-    finding = _make_finding(severity=EvidenceSeverity.BLOCKING, is_fixable=True)
+def test_propose_fixes_creates_an_attempt_for_an_empty_patch() -> None:
+    finding = _make_finding(
+        severity=EvidenceSeverity.BLOCKING,
+        is_fixable=True,
+    )
     ai_provider = MagicMock(spec=AIProvider)
     ai_provider.propose_fix.return_value = ""
     nodes = _make_nodes(ai_provider=ai_provider)
@@ -402,7 +406,11 @@ def test_propose_fixes_skips_empty_patches() -> None:
 
     result = nodes.propose_fixes(state)
 
-    assert result["fix_attempts"] == ()
+    [attempt] = result["fix_attempts"]
+    assert attempt.finding_id == finding.id
+    assert attempt.patch == ""
+    assert attempt.attempt_number == 1
+    assert attempt.validation_results == ()
 
 
 def test_propose_fixes_preserves_eligible_finding_order() -> None:
@@ -469,6 +477,113 @@ def test_propose_fixes_does_not_mutate_the_incoming_state() -> None:
     nodes.propose_fixes(state)
 
     assert state == snapshot
+
+
+def test_propose_fixes_first_attempt_uses_attempt_number_one() -> None:
+    finding = _make_finding(severity=EvidenceSeverity.BLOCKING, is_fixable=True)
+    ai_provider = MagicMock(spec=AIProvider)
+    ai_provider.propose_fix.return_value = "--- patch ---"
+    nodes = _make_nodes(ai_provider=ai_provider, max_fix_attempts=3)
+    state = _make_state(findings=(finding,), fix_attempts=())
+
+    nodes.propose_fixes(state)
+
+    ai_provider.propose_fix.assert_called_once_with(state["code"], finding, 1)
+
+
+def test_propose_fixes_retries_with_attempt_number_two_after_a_failed_attempt() -> None:
+    finding = _make_finding(severity=EvidenceSeverity.BLOCKING, is_fixable=True)
+    failed_attempt = _make_fix_attempt(
+        finding_id=finding.id,
+        attempt_number=1,
+        validation_results=(_make_validation_result(ValidationStatus.FAILED),),
+    )
+    ai_provider = MagicMock(spec=AIProvider)
+    ai_provider.propose_fix.return_value = "--- retry patch ---"
+    nodes = _make_nodes(ai_provider=ai_provider, max_fix_attempts=3)
+    state = _make_state(findings=(finding,), fix_attempts=(failed_attempt,))
+
+    result = nodes.propose_fixes(state)
+
+    ai_provider.propose_fix.assert_called_once_with(state["code"], finding, 2)
+    new_attempt = result["fix_attempts"][-1]
+    assert new_attempt.attempt_number == 2
+
+
+def test_propose_fixes_does_not_retry_a_passed_attempt() -> None:
+    finding = _make_finding(severity=EvidenceSeverity.BLOCKING, is_fixable=True)
+    passed_attempt = _make_fix_attempt(
+        finding_id=finding.id,
+        attempt_number=1,
+        validation_results=(_make_validation_result(ValidationStatus.PASSED),),
+    )
+    ai_provider = MagicMock(spec=AIProvider)
+    nodes = _make_nodes(ai_provider=ai_provider, max_fix_attempts=3)
+    state = _make_state(findings=(finding,), fix_attempts=(passed_attempt,))
+
+    result = nodes.propose_fixes(state)
+
+    ai_provider.propose_fix.assert_not_called()
+    assert result["fix_attempts"] == (passed_attempt,)
+
+
+def test_propose_fixes_respects_the_max_attempt_count() -> None:
+    finding = _make_finding(severity=EvidenceSeverity.BLOCKING, is_fixable=True)
+    exhausted_attempt = _make_fix_attempt(
+        finding_id=finding.id,
+        attempt_number=1,
+        validation_results=(_make_validation_result(ValidationStatus.FAILED),),
+    )
+    ai_provider = MagicMock(spec=AIProvider)
+    nodes = _make_nodes(ai_provider=ai_provider, max_fix_attempts=1)
+    state = _make_state(findings=(finding,), fix_attempts=(exhausted_attempt,))
+
+    result = nodes.propose_fixes(state)
+
+    ai_provider.propose_fix.assert_not_called()
+    assert result["fix_attempts"] == (exhausted_attempt,)
+
+
+def test_propose_fixes_calculates_attempt_numbers_independently_per_finding() -> None:
+    retrying_finding = _make_finding(
+        severity=EvidenceSeverity.BLOCKING, is_fixable=True
+    )
+    fresh_finding = _make_finding(severity=EvidenceSeverity.BLOCKING, is_fixable=True)
+    failed_attempt = _make_fix_attempt(
+        finding_id=retrying_finding.id,
+        attempt_number=1,
+        validation_results=(_make_validation_result(ValidationStatus.FAILED),),
+    )
+    ai_provider = MagicMock(spec=AIProvider)
+    ai_provider.propose_fix.side_effect = ["retry-patch", "fresh-patch"]
+    nodes = _make_nodes(ai_provider=ai_provider, max_fix_attempts=3)
+    state = _make_state(
+        findings=(retrying_finding, fresh_finding), fix_attempts=(failed_attempt,)
+    )
+
+    nodes.propose_fixes(state)
+
+    ai_provider.propose_fix.assert_any_call(state["code"], retrying_finding, 2)
+    ai_provider.propose_fix.assert_any_call(state["code"], fresh_finding, 1)
+
+
+def test_propose_fixes_appends_new_retry_attempts_after_existing_attempts() -> None:
+    finding = _make_finding(severity=EvidenceSeverity.BLOCKING, is_fixable=True)
+    failed_attempt = _make_fix_attempt(
+        finding_id=finding.id,
+        attempt_number=1,
+        validation_results=(_make_validation_result(ValidationStatus.FAILED),),
+    )
+    ai_provider = MagicMock(spec=AIProvider)
+    ai_provider.propose_fix.return_value = "--- retry patch ---"
+    nodes = _make_nodes(ai_provider=ai_provider, max_fix_attempts=3)
+    state = _make_state(findings=(finding,), fix_attempts=(failed_attempt,))
+
+    result = nodes.propose_fixes(state)
+
+    assert result["fix_attempts"][0] == failed_attempt
+    assert len(result["fix_attempts"]) == 2
+    assert result["fix_attempts"][1].attempt_number == 2
 
 
 def test_validate_fixes_validates_attempts_with_empty_validation_results() -> None:

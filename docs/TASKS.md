@@ -201,7 +201,7 @@ time pressure · **[COULD]** only if time remains.
   copy and re-run the relevant deterministic adapter(s) against it. *Done when applying the
   correct patch to the Stage 4 fixable defect results in a passing validation, and an
   incorrect patch results in a failing validation.*
-- [ ] **[MUST]** Implement the bounded fix-and-validate loop with a fixed attempt limit
+- [x] **[MUST]** Implement the bounded fix-and-validate loop with a fixed attempt limit
   (per ADR-014). *Done when the loop stops after the configured number of attempts even if
   validation keeps failing, without hanging or erroring.*
 - [x] **[MUST]** Implement the Decision Agent consolidating all evidence into status,
