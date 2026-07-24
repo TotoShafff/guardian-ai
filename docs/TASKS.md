@@ -176,9 +176,15 @@ time pressure · **[COULD]** only if time remains.
 
 ## Stage 6 — LangGraph agent workflow
 
-- [ ] **[MUST]** Implement the Semantic Analysis Agent as a LangGraph node calling
-  `AIProvider.generate_review()` and returning `Evidence` items in the common shape.
-  *Done when running it standalone against `MockProvider` returns valid `Evidence` items.*
+- [x] **[MUST]** Define the `ReviewWorkflowState` (`TypedDict`) and implement the
+  `collect_deterministic_evidence` node calling `RuffTool.analyze()` and
+  `PytestTool.analyze()` and merging their results (Ruff first, then Pytest) per
+  `docs/ARCHITECTURE.md` Section 7. *Done when it returns `{"evidence": ...}` without
+  mutating the incoming state, covered by unit tests with mocked tools.*
+- [x] **[MUST]** Implement the Semantic Analysis Agent as the `analyze_semantically`
+  LangGraph node calling `AIProvider.analyze_code()` and returning `Finding` items in the
+  common shape. *Done when running it standalone against a mocked `AIProvider` returns
+  valid `Finding` items without mutating the incoming state.*
 - [ ] **[MUST]** Implement the evidence-merge node combining deterministic adapter output
   (Stage 3) and Semantic Analysis Agent output into one evidence list. *Done when the
   merged list contains items from both sources with no shape mismatches.*
