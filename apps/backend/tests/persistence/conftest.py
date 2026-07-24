@@ -10,5 +10,6 @@ never actually dialed.
 import os
 
 os.environ.setdefault(
-    "DATABASE_URL", "postgresql+psycopg://guardian:guardian@localhost:5432/guardian_test"
+    "DATABASE_URL",
+    "postgresql+psycopg://guardian:guardian@localhost:5432/guardian_test",
 )

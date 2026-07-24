@@ -6,9 +6,9 @@ app = FastAPI(
     title="Guardian AI API",
     version="0.1.0",
     description=(
-    "Backend API for Guardian AI, an agentic code-review system combining "
-    "deterministic tool evidence with semantic analysis."
-),
+        "Backend API for Guardian AI, an agentic code-review system combining "
+        "deterministic tool evidence with semantic analysis."
+    ),
 )
 
 

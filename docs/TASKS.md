@@ -65,7 +65,7 @@ time pressure · **[COULD]** only if time remains.
   migration for `reviews`, `evidence`, `findings`, `fix_attempts` tables per
   `docs/ARCHITECTURE.md` Section 12. *Done when the migration applies cleanly to an empty
   database.*
-- [ ] **[MUST]** Implement domain models: `Evidence`, `Finding`, `Review`, `Decision` as
+- [x] **[MUST]** Implement domain models: `Evidence`, `Finding`, `Review`, `Decision` as
   plain Python classes with no framework imports. *Done when each model can be
   instantiated and serialized without importing FastAPI or SQLAlchemy.*
 - [ ] **[MUST]** Implement the repository/persistence layer mapping domain models to the

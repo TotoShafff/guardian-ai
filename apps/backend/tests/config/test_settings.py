@@ -35,7 +35,9 @@ def test_defaults_match_documented_values(monkeypatch: pytest.MonkeyPatch) -> No
     assert settings.max_fix_attempts == 1
 
 
-def test_environment_variables_override_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_environment_variables_override_defaults(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setenv("DATABASE_URL", _VALID_DATABASE_URL)
     monkeypatch.setenv("ENVIRONMENT", "production")
     monkeypatch.setenv("LOG_LEVEL", "DEBUG")
@@ -68,7 +70,9 @@ def test_get_settings_is_cached(monkeypatch: pytest.MonkeyPatch) -> None:
     assert first is second
 
 
-def test_unknown_environment_variables_are_ignored(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_unknown_environment_variables_are_ignored(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setenv("DATABASE_URL", _VALID_DATABASE_URL)
     monkeypatch.setenv("SOME_UNRELATED_VARIABLE", "unexpected-value")
 
@@ -97,7 +101,9 @@ def test_non_positive_timeout_is_rejected(
         Settings(_env_file=None)
 
 
-def test_max_fix_attempts_below_one_is_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_max_fix_attempts_below_one_is_rejected(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setenv("DATABASE_URL", _VALID_DATABASE_URL)
     monkeypatch.setenv("MAX_FIX_ATTEMPTS", "0")
 
