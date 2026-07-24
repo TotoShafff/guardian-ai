@@ -61,6 +61,11 @@ time pressure · **[COULD]** only if time remains.
 - [x] **[MUST]** Implement the PostgreSQL connection (engine/session factory) using the
   configuration from Stage 1. *Done when a connection can be opened against a running
   PostgreSQL instance using settings from environment variables.*
+- [x] **[MUST]** Define the SQLAlchemy ORM models (`ReviewModel`, `EvidenceModel`,
+  `FindingModel`, `FindingEvidenceModel`, `FixAttemptModel`, `ValidationResultModel`,
+  `DecisionModel`) mapping the tables in `docs/ARCHITECTURE.md` Section 12. *Done when
+  table names, primary keys, foreign keys, and constraints are verified by metadata-only
+  tests, with no live database required.*
 - [ ] **[MUST]** Set up the migration tool (e.g. Alembic) and generate the initial
   migration for `reviews`, `evidence`, `findings`, `fix_attempts` tables per
   `docs/ARCHITECTURE.md` Section 12. *Done when the migration applies cleanly to an empty
