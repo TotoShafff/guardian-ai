@@ -155,10 +155,10 @@ time pressure · **[COULD]** only if time remains.
 
 ## Stage 5 — AI provider abstraction
 
-- [ ] **[MUST]** Define the `AIProvider` interface (`generate_review()`, `propose_fix()`)
+- [x] **[MUST]** Define the `AIProvider` interface (`analyze_code()`, `propose_fix()`)
   per `docs/ARCHITECTURE.md` Section 9. *Done when the interface has type-annotated method
   signatures and no vendor-specific imports.*
-- [ ] **[MUST]** Implement `MockProvider`: deterministic, canned responses matching the
+- [x] **[MUST]** Implement `MockProvider`: deterministic, canned responses matching the
   `AIProvider` interface, with no network calls. *Done when it returns a fixed, valid
   review/fix response usable by the agent workflow without any API key configured.*
 - [ ] **[MUST]** Select the concrete real provider and implement its adapter behind
