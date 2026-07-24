@@ -101,7 +101,7 @@ time pressure · **[COULD]** only if time remains.
 - [x] **[MUST]** Implement the Ruff adapter: run Ruff as a subprocess against a target
   path, parse its output. *Done when running it against a file with a known lint violation
   returns exactly the expected `Evidence` item(s).*
-- [ ] **[MUST]** Implement the Pytest adapter: run Pytest as a subprocess against the
+- [x] **[MUST]** Implement the Pytest adapter: run Pytest as a subprocess against the
   example codebase, parse pass/fail results. *Done when running it against a suite with
   one failing test returns an `Evidence` item marked blocking.*
 - [ ] **[MUST]** Implement the ESLint adapter: run ESLint as a subprocess against the
