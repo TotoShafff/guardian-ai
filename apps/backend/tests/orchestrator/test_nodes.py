@@ -20,9 +20,12 @@ from app.domain.models import (
     FixAttempt,
     Review,
     ReviewStatus,
+    ValidationResult,
+    ValidationStatus,
 )
 from app.orchestrator.nodes import ReviewWorkflowNodes
 from app.orchestrator.state import ReviewWorkflowState
+from app.orchestrator.validation import FixValidator
 from app.providers.base import AIProvider
 from app.tools.pytest_tool import PytestTool
 from app.tools.ruff_tool import RuffTool
@@ -84,6 +87,7 @@ def _make_nodes(
     ruff_tool: RuffTool | None = None,
     pytest_tool: PytestTool | None = None,
     ai_provider: AIProvider | None = None,
+    fix_validator: FixValidator | None = None,
 ) -> ReviewWorkflowNodes:
     return ReviewWorkflowNodes(
         ruff_tool=ruff_tool if ruff_tool is not None else MagicMock(spec=RuffTool),
@@ -93,6 +97,9 @@ def _make_nodes(
         ai_provider=ai_provider
         if ai_provider is not None
         else MagicMock(spec=AIProvider),
+        fix_validator=fix_validator
+        if fix_validator is not None
+        else MagicMock(spec=FixValidator),
     )
 
 
@@ -462,6 +469,150 @@ def test_propose_fixes_does_not_mutate_the_incoming_state() -> None:
     nodes.propose_fixes(state)
 
     assert state == snapshot
+
+
+def test_validate_fixes_validates_attempts_with_empty_validation_results() -> None:
+    attempt = _make_fix_attempt(validation_results=())
+    fix_validator = MagicMock(spec=FixValidator)
+    fix_validator.validate.return_value = (
+        ValidationResult(
+            status=ValidationStatus.PASSED, tool="mock_validator", message="ok"
+        ),
+    )
+    nodes = _make_nodes(fix_validator=fix_validator)
+    state = _make_state(fix_attempts=(attempt,))
+
+    nodes.validate_fixes(state)
+
+    fix_validator.validate.assert_called_once_with(state["code"], attempt.patch)
+
+
+def test_validate_fixes_skips_attempts_already_validated() -> None:
+    already_validated = _make_fix_attempt(
+        validation_results=(
+            ValidationResult(
+                status=ValidationStatus.PASSED,
+                tool="mock_validator",
+                message="already validated",
+            ),
+        )
+    )
+    fix_validator = MagicMock(spec=FixValidator)
+    nodes = _make_nodes(fix_validator=fix_validator)
+    state = _make_state(fix_attempts=(already_validated,))
+
+    result = nodes.validate_fixes(state)
+
+    fix_validator.validate.assert_not_called()
+    assert result["fix_attempts"] == (already_validated,)
+
+
+def test_validate_fixes_preserves_attempt_identity_fields() -> None:
+    attempt = _make_fix_attempt(validation_results=())
+    fix_validator = MagicMock(spec=FixValidator)
+    fix_validator.validate.return_value = (
+        ValidationResult(
+            status=ValidationStatus.PASSED, tool="mock_validator", message="ok"
+        ),
+    )
+    nodes = _make_nodes(fix_validator=fix_validator)
+    state = _make_state(fix_attempts=(attempt,))
+
+    [validated] = nodes.validate_fixes(state)["fix_attempts"]
+
+    assert validated.id == attempt.id
+    assert validated.finding_id == attempt.finding_id
+    assert validated.patch == attempt.patch
+    assert validated.attempt_number == attempt.attempt_number
+    assert validated.created_at == attempt.created_at
+
+
+def test_validate_fixes_stores_the_returned_validation_results() -> None:
+    attempt = _make_fix_attempt(validation_results=())
+    results = (
+        ValidationResult(
+            status=ValidationStatus.FAILED, tool="mock_validator", message="failed"
+        ),
+    )
+    fix_validator = MagicMock(spec=FixValidator)
+    fix_validator.validate.return_value = results
+    nodes = _make_nodes(fix_validator=fix_validator)
+    state = _make_state(fix_attempts=(attempt,))
+
+    [validated] = nodes.validate_fixes(state)["fix_attempts"]
+
+    assert validated.validation_results == results
+
+
+def test_validate_fixes_preserves_attempt_order() -> None:
+    first = _make_fix_attempt(validation_results=())
+    second = _make_fix_attempt(validation_results=())
+    fix_validator = MagicMock(spec=FixValidator)
+    fix_validator.validate.return_value = (
+        ValidationResult(
+            status=ValidationStatus.PASSED, tool="mock_validator", message="ok"
+        ),
+    )
+    nodes = _make_nodes(fix_validator=fix_validator)
+    state = _make_state(fix_attempts=(first, second))
+
+    result = nodes.validate_fixes(state)
+
+    assert [attempt.id for attempt in result["fix_attempts"]] == [first.id, second.id]
+
+
+def test_validate_fixes_returns_only_the_fix_attempts_update() -> None:
+    fix_validator = MagicMock(spec=FixValidator)
+    nodes = _make_nodes(fix_validator=fix_validator)
+    state = _make_state(fix_attempts=())
+
+    result = nodes.validate_fixes(state)
+
+    assert isinstance(result, dict)
+    assert set(result.keys()) == {"fix_attempts"}
+    assert isinstance(result["fix_attempts"], tuple)
+
+
+def test_validate_fixes_returns_an_empty_tuple_when_there_are_no_attempts() -> None:
+    fix_validator = MagicMock(spec=FixValidator)
+    nodes = _make_nodes(fix_validator=fix_validator)
+    state = _make_state(fix_attempts=())
+
+    result = nodes.validate_fixes(state)
+
+    assert result["fix_attempts"] == ()
+    fix_validator.validate.assert_not_called()
+
+
+def test_validate_fixes_does_not_mutate_the_incoming_state() -> None:
+    attempt = _make_fix_attempt(validation_results=())
+    fix_validator = MagicMock(spec=FixValidator)
+    fix_validator.validate.return_value = (
+        ValidationResult(
+            status=ValidationStatus.PASSED, tool="mock_validator", message="ok"
+        ),
+    )
+    nodes = _make_nodes(fix_validator=fix_validator)
+    state = _make_state(fix_attempts=(attempt,))
+    snapshot = dict(state)
+
+    nodes.validate_fixes(state)
+
+    assert state == snapshot
+
+
+def test_validate_fixes_propagates_validator_exceptions_unchanged() -> None:
+    class _FakeValidatorError(Exception):
+        pass
+
+    attempt = _make_fix_attempt(validation_results=())
+    fix_validator = MagicMock(spec=FixValidator)
+    fix_validator.validate.side_effect = _FakeValidatorError("validator blew up")
+    nodes = _make_nodes(fix_validator=fix_validator)
+    state = _make_state(fix_attempts=(attempt,))
+
+    with pytest.raises(_FakeValidatorError, match="validator blew up"):
+        nodes.validate_fixes(state)
 
 
 def test_orchestrator_modules_avoid_forbidden_imports() -> None:

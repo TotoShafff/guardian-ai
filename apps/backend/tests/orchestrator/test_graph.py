@@ -33,6 +33,7 @@ from app.orchestrator.graph import (
 )
 from app.orchestrator.nodes import ReviewWorkflowNodes
 from app.orchestrator.state import ReviewWorkflowState
+from app.orchestrator.validation import FixValidator
 from app.providers.base import AIProvider
 from app.tools.pytest_tool import PytestTool
 from app.tools.ruff_tool import RuffTool
@@ -67,6 +68,7 @@ def _make_nodes(
     ruff_tool: RuffTool | None = None,
     pytest_tool: PytestTool | None = None,
     ai_provider: AIProvider | None = None,
+    fix_validator: FixValidator | None = None,
 ) -> ReviewWorkflowNodes:
     return ReviewWorkflowNodes(
         ruff_tool=ruff_tool if ruff_tool is not None else MagicMock(spec=RuffTool),
@@ -76,6 +78,9 @@ def _make_nodes(
         ai_provider=ai_provider
         if ai_provider is not None
         else MagicMock(spec=AIProvider),
+        fix_validator=fix_validator
+        if fix_validator is not None
+        else MagicMock(spec=FixValidator),
     )
 
 
@@ -104,11 +109,13 @@ def test_build_review_graph_executes_nodes_in_the_required_order() -> None:
     ruff_tool = MagicMock(spec=RuffTool)
     pytest_tool = MagicMock(spec=PytestTool)
     ai_provider = MagicMock(spec=AIProvider)
+    fix_validator = MagicMock(spec=FixValidator)
 
     nodes = ReviewWorkflowNodes(
         ruff_tool=ruff_tool,
         pytest_tool=pytest_tool,
         ai_provider=ai_provider,
+        fix_validator=fix_validator,
     )
 
     nodes.collect_deterministic_evidence = MagicMock(
@@ -147,6 +154,7 @@ def test_build_review_graph_executes_nodes_in_the_required_order() -> None:
         PROPOSE_FIXES,
         MAKE_DECISION,
     ]
+
 
 def test_build_review_graph_merges_partial_state_updates_into_final_state() -> None:
     evidence_item = Evidence(

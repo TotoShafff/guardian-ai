@@ -1,20 +1,24 @@
 """Nodes of the Guardian AI review LangGraph workflow.
 
 `ReviewWorkflowNodes` groups the workflow's node methods behind explicit,
-constructor-injected dependencies (a `RuffTool`, a `PytestTool`, and an
-`AIProvider`), so the graph wiring (added in a later stage, per
-`docs/ROADMAP.md`) can compose them without any node reaching into global
-state, a database session, or a concrete tool/provider implementation.
+constructor-injected dependencies (a `RuffTool`, a `PytestTool`, an
+`AIProvider`, and a `FixValidator`), so the graph wiring (see
+`app/orchestrator/graph.py`) can compose them without any node reaching
+into global state, a database session, or a concrete tool/provider/
+validator implementation.
 
-Four nodes are implemented so far: `collect_deterministic_evidence`
+Five nodes are implemented so far: `collect_deterministic_evidence`
 (Ruff + Pytest), `analyze_semantically` (the AI provider), `propose_fixes`
-(one bounded `AIProvider.propose_fix()` call per eligible finding), and
-`make_decision` (consolidates findings into a `Decision`). Graph wiring,
-routing/conditional edges, retries, and patch validation are added in a
-later stage. No node mutates the `state` it receives — each returns only
-the partial state update it is responsible for, matching the convention
-LangGraph uses to merge node outputs into the graph's state.
+(one bounded `AIProvider.propose_fix()` call per eligible finding),
+`validate_fixes` (fills in `validation_results` for attempts not yet
+validated), and `make_decision` (consolidates findings into a `Decision`).
+Routing/conditional edges, retries, and a bounded fix-and-validate loop are
+added in a later stage. No node mutates the `state` it receives — each
+returns only the partial state update it is responsible for, matching the
+convention LangGraph uses to merge node outputs into the graph's state.
 """
+
+from dataclasses import replace
 
 from app.domain.models import (
     Decision,
@@ -24,6 +28,7 @@ from app.domain.models import (
     ReviewStatus,
 )
 from app.orchestrator.state import ReviewWorkflowState
+from app.orchestrator.validation import FixValidator
 from app.providers.base import AIProvider
 from app.tools.pytest_tool import PytestTool
 from app.tools.ruff_tool import RuffTool
@@ -41,10 +46,12 @@ class ReviewWorkflowNodes:
         ruff_tool: RuffTool,
         pytest_tool: PytestTool,
         ai_provider: AIProvider,
+        fix_validator: FixValidator,
     ) -> None:
         self._ruff_tool = ruff_tool
         self._pytest_tool = pytest_tool
         self._ai_provider = ai_provider
+        self._fix_validator = fix_validator
 
     def collect_deterministic_evidence(
         self,
@@ -128,6 +135,40 @@ class ReviewWorkflowNodes:
             )
 
         return {"fix_attempts": existing_attempts + tuple(new_attempts)}
+
+    def validate_fixes(
+        self,
+        state: ReviewWorkflowState,
+    ) -> dict[str, object]:
+        """Fill in `validation_results` for every not-yet-validated fix attempt.
+
+        Calls `FixValidator.validate(code, attempt.patch)` once per attempt
+        whose `validation_results` tuple is still empty, in attempt order.
+        Each validated attempt is replaced by a new `FixAttempt` carrying
+        the same `id`, `finding_id`, `patch`, `attempt_number`, and
+        `created_at`, with only `validation_results` updated; attempts that
+        already have validation results are kept unchanged (same object).
+        Validator exceptions are not caught here — they propagate to the
+        caller. This method does not apply `patch` to any file, does not
+        run Ruff or Pytest, and does not mutate `state` or the existing
+        `FixAttempt` objects.
+        """
+        code = state["code"]
+        fix_attempts = state["fix_attempts"]
+
+        validated_attempts: list[FixAttempt] = []
+        for attempt in fix_attempts:
+            if attempt.validation_results:
+                validated_attempts.append(attempt)
+            else:
+                validated_attempts.append(self._validate_attempt(code, attempt))
+
+        return {"fix_attempts": tuple(validated_attempts)}
+
+    def _validate_attempt(self, code: str, attempt: FixAttempt) -> FixAttempt:
+        """Return a copy of `attempt` with freshly computed `validation_results`."""
+        validation_results = self._fix_validator.validate(code, attempt.patch)
+        return replace(attempt, validation_results=validation_results)
 
     def make_decision(
         self,
