@@ -47,7 +47,7 @@ time pressure · **[COULD]** only if time remains.
   layout matches `docs/ARCHITECTURE.md` Section 10.*
 - [x] **[MUST]** Bootstrap the FastAPI application instance (`api/main.py` or equivalent).
   *Done when `uvicorn` starts the app locally and serves the OpenAPI docs page.*
-- [ ] **[MUST]** Implement the configuration/settings module reading environment variables
+- [x] **[MUST]** Implement the configuration/settings module reading environment variables
   (DB URL, AI provider selection, provider API key, tool timeouts). *Done when settings
   load from environment variables with sensible defaults and fail clearly if a required
   variable is missing.*

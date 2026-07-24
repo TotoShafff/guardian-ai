@@ -1,9 +1,4 @@
-"""FastAPI application entry point for the Guardian AI backend.
-
-This module creates and configures the `app` FastAPI instance. At this bootstrap
-stage it only exposes a root endpoint identifying the service; routers, database
-connectivity, configuration, providers, and orchestration are added in later stages.
-"""
+"FastAPI application entry point."
 
 from fastapi import FastAPI
 
