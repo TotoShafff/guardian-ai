@@ -27,9 +27,11 @@ _BACKEND_ROOT = Path(__file__).resolve().parents[1]
 if str(_BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(_BACKEND_ROOT))
 
-from app.config import get_settings  # noqa: E402
-from app.persistence.database import Base  # noqa: E402
-from app.persistence import models  # noqa: E402,F401  (registers all tables on Base.metadata)
+from app.config import get_settings
+from app.persistence import (
+    models,  # noqa: F401  (registers all tables on Base.metadata)
+)
+from app.persistence.database import Base
 
 # This is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

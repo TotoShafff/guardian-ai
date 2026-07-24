@@ -18,6 +18,7 @@ dependencies = [
   "pydantic-settings",
   "python-dotenv",
   "alembic",
+  "httpx",
 ]
 
 [project.optional-dependencies]
@@ -25,7 +26,6 @@ dev = [
   "pytest",
   "ruff",
   "mypy",
-  "httpx",
   "pytest-cov",
 ]
 

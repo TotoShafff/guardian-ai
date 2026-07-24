@@ -36,16 +36,31 @@ class Settings(BaseSettings):
     database_url: str
 
     ai_provider: str = "mock"
-    ai_model: str | None = None
-    ai_api_key: str | None = None
+
+    #: OpenRouter-specific settings, used only when `ai_provider == "openrouter"`
+    #: (see `app.providers.openrouter.OpenRouterProvider`). Never read directly
+    #: by the provider from the environment — only via this `Settings` object,
+    #: constructed in `app/api/dependencies.py`.
+    openrouter_api_key: str | None = None
+    openrouter_model: str = "deepseek/deepseek-r1:free"
+    openrouter_base_url: str = "https://openrouter.ai/api/v1"
+    openrouter_timeout_seconds: float = 60.0
+    openrouter_app_url: str | None = None
+    openrouter_app_name: str = "Guardian AI"
 
     tool_timeout_seconds: int = 30
-    provider_timeout_seconds: int = 60
     max_fix_attempts: int = 1
 
-    @field_validator("tool_timeout_seconds", "provider_timeout_seconds")
+    @field_validator("tool_timeout_seconds")
     @classmethod
     def _validate_positive_timeout(cls, value: int) -> int:
+        if value <= 0:
+            raise ValueError("must be greater than zero")
+        return value
+
+    @field_validator("openrouter_timeout_seconds")
+    @classmethod
+    def _validate_positive_openrouter_timeout(cls, value: float) -> float:
         if value <= 0:
             raise ValueError("must be greater than zero")
         return value

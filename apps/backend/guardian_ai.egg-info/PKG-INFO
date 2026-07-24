@@ -12,9 +12,9 @@ Requires-Dist: psycopg[binary]
 Requires-Dist: pydantic-settings
 Requires-Dist: python-dotenv
 Requires-Dist: alembic
+Requires-Dist: httpx
 Provides-Extra: dev
 Requires-Dist: pytest; extra == "dev"
 Requires-Dist: ruff; extra == "dev"
 Requires-Dist: mypy; extra == "dev"
-Requires-Dist: httpx; extra == "dev"
 Requires-Dist: pytest-cov; extra == "dev"

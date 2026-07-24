@@ -17,28 +17,26 @@ from langgraph.graph.state import CompiledStateGraph
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
+from app.config.settings import Settings
 from app.orchestrator.graph import build_review_graph
 from app.orchestrator.nodes import ReviewWorkflowNodes
 from app.orchestrator.validation import FixValidator, MockFixValidator
 from app.persistence.database import SessionLocal
 from app.persistence.repositories import ReviewRepository
 from app.providers.base import AIProvider
+from app.providers.exceptions import AIProviderConfigurationError
 from app.providers.mock import MockProvider
+from app.providers.openrouter import OpenRouterProvider
 from app.services.review_service import ReviewService
 from app.tools.pytest_tool import PytestTool
 from app.tools.ruff_tool import RuffTool
 
+#: Supported `Settings.ai_provider` values and the constructors they select.
+_MOCK_PROVIDER_NAME = "mock"
+_OPENROUTER_PROVIDER_NAME = "openrouter"
+
 
 def get_db_session() -> Generator[Session, None, None]:
-    """Yield a request-scoped session that commits on success, rolls back on error.
-
-    This session's transaction is owned by the API request it serves — see
-    `ReviewRepository`'s docstring ("transaction ownership belongs to
-    whoever owns the session"). This is distinct from the lower-level
-    `app.persistence.database.get_db()`, which only opens and closes a
-    session and leaves commit/rollback to its caller; his dependency uses the shared SessionLocal factory while adding
-    request-level commit and rollback behavior.
-    """
     session = SessionLocal()
     try:
         yield session
@@ -57,13 +55,42 @@ def get_review_repository(
     return ReviewRepository(session)
 
 
-def get_ai_provider() -> AIProvider:
-    """Construct the configured `AIProvider`.
+def build_ai_provider(settings: Settings) -> AIProvider:
+    """Construct the `AIProvider` selected by `settings.ai_provider`.
 
-    Only `MockProvider` is wired up so far; selecting a real provider via
-    configuration is a later stage (see `docs/ROADMAP.md` Phase 3).
+    `"mock"` (the default) selects `MockProvider`, requiring no API key or
+    network access. `"openrouter"` selects `OpenRouterProvider`, calling
+    OpenRouter's `/chat/completions` API using the `openrouter_*` settings
+    (see `docs/DECISIONS.md` ADR-010). Any other value raises
+    `AIProviderConfigurationError` immediately, rather than silently
+    falling back to a provider the operator did not ask for. Exposed as a
+    plain function of `Settings` (not just inlined in `get_ai_provider()`)
+    so provider selection can be unit tested without FastAPI's dependency
+    injection machinery.
     """
-    return MockProvider()
+    provider_name = settings.ai_provider.strip().lower()
+
+    if provider_name == _MOCK_PROVIDER_NAME:
+        return MockProvider()
+
+    if provider_name == _OPENROUTER_PROVIDER_NAME:
+        return OpenRouterProvider(
+            api_key=settings.openrouter_api_key,
+            model=settings.openrouter_model,
+            base_url=settings.openrouter_base_url,
+            timeout_seconds=settings.openrouter_timeout_seconds,
+            app_name=settings.openrouter_app_name,
+            app_url=settings.openrouter_app_url,
+        )
+
+    raise AIProviderConfigurationError(
+        f"Unsupported AI_PROVIDER: {settings.ai_provider!r}"
+    )
+
+
+def get_ai_provider() -> AIProvider:
+    """Construct the configured `AIProvider` for this request (see `build_ai_provider`)."""
+    return build_ai_provider(get_settings())
 
 
 def get_fix_validator() -> FixValidator:

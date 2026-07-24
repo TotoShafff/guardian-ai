@@ -161,7 +161,7 @@ time pressure · **[COULD]** only if time remains.
 - [x] **[MUST]** Implement `MockProvider`: deterministic, canned responses matching the
   `AIProvider` interface, with no network calls. *Done when it returns a fixed, valid
   review/fix response usable by the agent workflow without any API key configured.*
-- [ ] **[MUST]** Select the concrete real provider and implement its adapter behind
+- [x] **[MUST]** Select the concrete real provider and implement its adapter behind
   `AIProvider`. *Done when it successfully returns a real semantic review for a sample
   diff using a configured API key.*
 - [ ] **[MUST]** Wire provider selection to configuration (Stage 1 settings), defaulting to
