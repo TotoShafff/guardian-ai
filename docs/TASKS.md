@@ -239,25 +239,25 @@ time pressure · **[COULD]** only if time remains.
 
 ## Stage 8 — Frontend
 
-- [ ] **[MUST]** Bootstrap the React + Vite + TypeScript + Tailwind CSS project in
+- [x] **[MUST]** Bootstrap the React + Vite + TypeScript + Tailwind CSS project in
   `apps/frontend`. *Done when `npm run dev` serves a blank page without errors.*
-- [ ] **[MUST]** Implement the typed API client wrapping `POST /reviews` and
+- [x] **[MUST]** Implement the typed API client wrapping `POST /reviews` and
   `GET /reviews/{id}`. *Done when it can be called from a component and returns
   correctly typed data matching the backend schemas.*
-- [ ] **[MUST]** Implement the review submission screen (trigger the fixed demo scenario).
+- [x] **[MUST]** Implement the review submission screen (trigger the fixed demo scenario).
   *Done when clicking "Run review" calls the API client and stores the result in
   component state.*
-- [ ] **[SHOULD]** Implement the review progress/loading state shown while the request is
+- [x] **[SHOULD]** Implement the review progress/loading state shown while the request is
   in flight. *Done when a loading indicator is visible between submission and response.*
-- [ ] **[MUST]** Implement the findings display (blocking and non-blocking findings list,
+- [x] **[MUST]** Implement the findings display (blocking and non-blocking findings list,
   with evidence source per item). *Done when a sample API response renders each finding
   with its severity and source visibly distinguished.*
-- [ ] **[MUST]** Implement the final decision summary view (status + rationale). *Done
+- [x] **[MUST]** Implement the final decision summary view (status + rationale). *Done
   when the overall status and rationale text render above the findings list.*
-- [ ] **[MUST]** Implement the suggested fix and validation result display (patch preview +
+- [x] **[MUST]** Implement the suggested fix and validation result display (patch preview +
   pass/fail badge). *Done when a fixable finding's proposed patch and validation outcome
   render clearly for the user.*
-- [ ] **[SHOULD]** Apply a minimal responsive layout usable on a laptop screen. *Done when
+- [x] **[SHOULD]** Apply a minimal responsive layout usable on a laptop screen. *Done when
   the page is readable and usable at common laptop widths without horizontal scrolling.*
 - [ ] **[COULD]** Add visual polish (icons/badges per evidence source, improved loading
   animation). *Done when added without introducing any client-side severity/status logic.*
