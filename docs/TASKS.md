@@ -73,10 +73,15 @@ time pressure · **[COULD]** only if time remains.
 - [x] **[MUST]** Implement domain models: `Evidence`, `Finding`, `Review`, `Decision` as
   plain Python classes with no framework imports. *Done when each model can be
   instantiated and serialized without importing FastAPI or SQLAlchemy.*
-- [ ] **[MUST]** Implement the repository/persistence layer mapping domain models to the
-  database tables (`ReviewRepository`, `EvidenceRepository`, etc.). *Done when a review
-  with its evidence, findings, and fix attempts can be saved and re-read from PostgreSQL
-  via a repository call, verified by a script or test.*
+- [x] **[MUST]** Implement `ReviewRepository` (`add`, `get_by_id`, `list_recent`, `update`),
+  translating between the domain `Review` model and `ReviewModel` and receiving its
+  `Session` from the caller. *Done when unit tests verify each method's session
+  interaction (add/flush, lookup, descending pagination, update, not-found handling)
+  using a mocked `Session`, with no live database required.*
+- [ ] **[MUST]** Implement the remaining repository/persistence layer mapping domain models
+  to the database tables (`EvidenceRepository`, `FindingRepository`, etc.). *Done when a
+  review with its evidence, findings, and fix attempts can be saved and re-read from
+  PostgreSQL via a repository call, verified by a script or test.*
 - [ ] **[MUST]** Implement the `GET /health` endpoint checking both app liveness and DB
   connectivity. *Done when it returns 200 with the DB reachable and a non-200/degraded
   response with the DB unreachable.*

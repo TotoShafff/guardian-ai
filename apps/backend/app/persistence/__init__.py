@@ -10,6 +10,7 @@ from app.persistence.models import (
     ReviewModel,
     ValidationResultModel,
 )
+from app.persistence.repositories import ReviewNotFoundError, ReviewRepository
 
 __all__ = [
     "Base",
@@ -19,6 +20,8 @@ __all__ = [
     "FindingModel",
     "FixAttemptModel",
     "ReviewModel",
+    "ReviewNotFoundError",
+    "ReviewRepository",
     "SessionLocal",
     "ValidationResultModel",
     "engine",
