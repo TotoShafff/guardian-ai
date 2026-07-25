@@ -77,7 +77,7 @@ Para levantar el sistema con Docker:
 - Docker Desktop
 - Docker Compose
 - Git
-- una API key de Gemini obtenida desde [Google AI Studio](https://aistudio.google.com/)
+- una API key de Gemini obtenida desde [Google AI Studio](https://aistudio.google.com/apikey)
 
 Python y Node.js no son obligatorios si usás solo Docker Compose. Sí hacen
 falta para desarrollo local (ver más abajo).
@@ -87,7 +87,7 @@ falta para desarrollo local (ver más abajo).
 ### PowerShell (Windows)
 
 ```powershell
-git clone <url-del-repositorio>
+git clone https://github.com/TotoShafff/guardian-ai.git
 cd guardian-ai
 
 Copy-Item .env.example .env
@@ -281,41 +281,83 @@ instalado en cada app).
 Podés desarrollar cada app fuera de los contenedores. PostgreSQL sigue siendo
 necesario para el backend (por ejemplo, solo el servicio `db` de Compose).
 
+El flujo probado usa una **`.venv` en la raíz del repositorio** (no dentro de
+`apps/backend`).
+
 ### Backend
 
 Requisitos: Python 3.12+.
 
+Desde la raíz del repositorio:
+
+**PowerShell (Windows)**
+
 ```powershell
-cd apps/backend
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-pip install -e ".[dev]"
+pip install -e ".\apps\backend[dev]"
+
+# Necesario para que Pytest pueda importar el paquete `ecommerce`
+# (equivalente a PYTHONPATH=/app/examples/ecommerce en Compose).
+$env:PYTHONPATH = Join-Path $PWD "examples\ecommerce"
 ```
+
+**bash (macOS / Linux)**
 
 ```bash
-cd apps/backend
 python -m venv .venv
 source .venv/bin/activate
-pip install -e ".[dev]"
+pip install -e "./apps/backend[dev]"
+
+# Necesario para que Pytest pueda importar el paquete `ecommerce`
+# (equivalente a PYTHONPATH=/app/examples/ecommerce en Compose).
+export PYTHONPATH="$PWD/examples/ecommerce"
 ```
 
-Configurá `DATABASE_URL` apuntando al host, por ejemplo:
+Configurá `DATABASE_URL` apuntando al host (por ejemplo en el `.env` de la
+raíz), por ejemplo:
 
 ```env
 DATABASE_URL=postgresql+psycopg://guardian:guardian@localhost:5432/guardian
 AI_PROVIDER=mock
 ```
 
-Migraciones y servidor:
+Migraciones (desde `apps/backend`, con la venv de la raíz ya activa):
+
+```powershell
+cd apps\backend
+alembic upgrade head
+cd ..\..
+```
 
 ```bash
+cd apps/backend
 alembic upgrade head
+cd ../..
+```
+
+Servidor (desde la **raíz** del repositorio, para que la ruta por defecto
+`./examples/ecommerce` del formulario resuelva bien):
+
+```powershell
+# Si abriste una shell nueva, reactivá la venv y PYTHONPATH:
+.\.venv\Scripts\Activate.ps1
+$env:PYTHONPATH = Join-Path $PWD "examples\ecommerce"
+
 uvicorn app.api.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-Para revisar `examples/ecommerce` con Pytest desde el host, asegurate de que
-esa ruta sea resoluble y de que el paquete de ejemplo sea importable (en
-Compose se usa `PYTHONPATH=/app/examples/ecommerce`).
+```bash
+# Si abriste una shell nueva, reactivá la venv y PYTHONPATH:
+source .venv/bin/activate
+export PYTHONPATH="$PWD/examples/ecommerce"
+
+uvicorn app.api.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+`PYTHONPATH` debe apuntar a `examples/ecommerce` (el directorio que contiene el
+paquete `ecommerce/`), no a la raíz del repo. Sin eso, Pytest falla al
+recolectar/importar los tests de la demo.
 
 ### Frontend
 
