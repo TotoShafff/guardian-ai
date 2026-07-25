@@ -30,7 +30,7 @@ services:
       DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://guardian:guardian@db:5432/guardian}
       AI_PROVIDER: ${AI_PROVIDER:-mock}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
-      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-deepseek/deepseek-r1:free}
+      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-deepseek/deepseek-v4-flash:free}
       OPENROUTER_BASE_URL: ${OPENROUTER_BASE_URL:-https://openrouter.ai/api/v1}
       OPENROUTER_TIMEOUT_SECONDS: ${OPENROUTER_TIMEOUT_SECONDS:-60}
       OPENROUTER_APP_URL: ${OPENROUTER_APP_URL:-}

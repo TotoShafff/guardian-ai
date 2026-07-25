@@ -51,7 +51,7 @@ class Settings(BaseSettings):
     #: by the provider from the environment — only via this `Settings` object,
     #: constructed in `app/api/dependencies.py`.
     openrouter_api_key: str | None = None
-    openrouter_model: str = "deepseek/deepseek-r1:free"
+    openrouter_model: str = "deepseek/deepseek-v4-flash:free"
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
     openrouter_timeout_seconds: float = 60.0
     openrouter_app_url: str | None = None

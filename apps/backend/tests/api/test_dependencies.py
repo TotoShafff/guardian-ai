@@ -42,7 +42,7 @@ def test_ai_provider_openrouter_selects_openrouter_provider() -> None:
     settings = _make_settings(
         ai_provider="openrouter",
         openrouter_api_key="test-key",
-        openrouter_model="deepseek/deepseek-r1:free",
+        openrouter_model="deepseek/deepseek-v4-flash:free",
     )
 
     provider = build_ai_provider(settings)
