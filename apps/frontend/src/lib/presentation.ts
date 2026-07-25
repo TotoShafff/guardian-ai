@@ -15,7 +15,13 @@ import type {
   ValidationStatus,
 } from '../api/types'
 
-export type BadgeTone = 'success' | 'danger' | 'warning' | 'info' | 'neutral'
+export type BadgeTone =
+  | 'success'
+  | 'danger'
+  | 'warning'
+  | 'info'
+  | 'neutral'
+  | 'pending'
 
 const REVIEW_STATUS_LABELS: Record<ReviewStatus, string> = {
   pending: 'Pendiente',
@@ -26,8 +32,8 @@ const REVIEW_STATUS_LABELS: Record<ReviewStatus, string> = {
 }
 
 const REVIEW_STATUS_TONES: Record<ReviewStatus, BadgeTone> = {
-  pending: 'neutral',
-  running: 'info',
+  pending: 'pending',
+  running: 'pending',
   approved: 'success',
   blocked: 'danger',
   failed: 'danger',
@@ -124,6 +130,23 @@ export function formatDateTime(value: string | null): string {
     dateStyle: 'medium',
     timeStyle: 'short',
   })
+}
+
+const SHORT_DATE_TIME = new Intl.DateTimeFormat('es-AR', {
+  dateStyle: 'short',
+  timeStyle: 'short',
+})
+
+/** Compact es-AR date/time for history tables. */
+export function formatDateTimeShort(value: string | null): string {
+  if (value === null) {
+    return '—'
+  }
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return value
+  }
+  return SHORT_DATE_TIME.format(date)
 }
 
 /**

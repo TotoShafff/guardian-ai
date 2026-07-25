@@ -305,3 +305,56 @@ def test_get_historical_review_does_not_run_the_workflow(
     assert response.status_code == 200
     mock_review_service.get_review.assert_called_once_with(review.id)
     mock_review_service.run_review.assert_not_called()
+
+
+def test_get_and_post_review_share_the_same_response_schema_keys(
+    client: TestClient, mock_review_service: MagicMock
+) -> None:
+    review = _make_review()
+    result = _make_review_result(review)
+    mock_review_service.run_review.return_value = result
+    mock_review_service.get_review.return_value = result
+
+    post_body = client.post("/api/reviews", json=_VALID_REQUEST_BODY).json()
+    get_body = client.get(f"/api/reviews/{review.id}").json()
+
+    assert set(post_body.keys()) == set(get_body.keys())
+    assert set(post_body.keys()) == {
+        "id",
+        "target_reference",
+        "status",
+        "created_at",
+        "updated_at",
+        "evidence",
+        "findings",
+        "fix_attempts",
+        "decision",
+        "error",
+    }
+    assert post_body["evidence"][0].keys() == get_body["evidence"][0].keys()
+    assert post_body["findings"][0].keys() == get_body["findings"][0].keys()
+    assert post_body["fix_attempts"][0].keys() == get_body["fix_attempts"][0].keys()
+    assert post_body["decision"].keys() == get_body["decision"].keys()
+    mock_review_service.run_review.assert_called_once()
+    mock_review_service.get_review.assert_called_once_with(review.id)
+
+
+def test_get_reviews_preserves_descending_created_at_order(
+    client: TestClient, mock_review_service: MagicMock
+) -> None:
+    newer = _make_summary(
+        target_reference="newer",
+        created_at=datetime(2026, 1, 2, tzinfo=UTC),
+    )
+    older = _make_summary(
+        target_reference="older",
+        created_at=datetime(2026, 1, 1, tzinfo=UTC),
+    )
+    mock_review_service.list_reviews.return_value = (newer, older)
+
+    response = client.get("/api/reviews")
+
+    assert response.status_code == 200
+    references = [item["target_reference"] for item in response.json()["reviews"]]
+    assert references == ["newer", "older"]
+    mock_review_service.run_review.assert_not_called()

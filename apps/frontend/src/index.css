@@ -1,1 +1,68 @@
 @import 'tailwindcss';
+
+@theme {
+  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial,
+    sans-serif;
+  --font-mono: ui-monospace, 'Cascadia Code', 'SF Mono', Consolas, 'Liberation Mono', Menlo,
+    monospace;
+
+  --color-terminal-bg: #070b12;
+  --color-terminal-surface: #0d1520;
+  --color-terminal-panel: #111b28;
+  --color-terminal-elevated: #162233;
+  --color-terminal-border: #243447;
+  --color-terminal-border-strong: #2f455c;
+  --color-terminal-text: #e6eef8;
+  --color-terminal-muted: #8fa3b8;
+  --color-terminal-faint: #5c738a;
+  --color-terminal-accent: #3dffa8;
+  --color-terminal-accent-dim: #1f9e68;
+  --color-terminal-cyan: #3ecfff;
+  --color-terminal-danger: #ff6b7a;
+  --color-terminal-warning: #f5b942;
+  --color-terminal-pending: #a78bfa;
+}
+
+@layer base {
+  html {
+    @apply antialiased;
+  }
+
+  body {
+    @apply m-0 min-h-screen bg-[var(--color-terminal-bg)] font-sans text-[var(--color-terminal-text)];
+  }
+
+  ::selection {
+    background: color-mix(in srgb, var(--color-terminal-cyan) 35%, transparent);
+    color: var(--color-terminal-text);
+  }
+}
+
+/* Atmospheric terminal background: grid + soft corner glow */
+.app-shell {
+  position: relative;
+  isolation: isolate;
+  min-height: 100vh;
+  background:
+    radial-gradient(ellipse 80% 50% at 0% 0%, rgba(62, 207, 255, 0.08), transparent 55%),
+    radial-gradient(ellipse 60% 40% at 100% 100%, rgba(61, 255, 168, 0.06), transparent 50%),
+    linear-gradient(180deg, #0a1018 0%, var(--color-terminal-bg) 45%, #05080e 100%);
+}
+
+.app-shell::before {
+  content: '';
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  opacity: 0.22;
+  background-image:
+    linear-gradient(rgba(62, 207, 255, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(62, 207, 255, 0.06) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse 90% 70% at 50% 20%, black 20%, transparent 75%);
+}
+
+.focus-ring {
+  @apply outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-terminal-cyan)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-terminal-bg)];
+}

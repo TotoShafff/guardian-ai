@@ -2,7 +2,9 @@ import { useId } from 'react'
 
 import type { Evidence, EvidenceSource, Finding } from '../api/types'
 import { evidenceSourceLabel, severityLabel, severityTone } from '../lib/presentation'
+import { AlertIcon } from './icons'
 import { EmptyState } from './EmptyState'
+import { SectionHeader } from './SectionHeader'
 import { StatusBadge } from './StatusBadge'
 
 interface FindingsSectionProps {
@@ -25,19 +27,35 @@ function sourcesFor(finding: Finding, evidenceById: Map<string, Evidence>): Evid
   return Array.from(seen)
 }
 
+function accentForSeverity(severity: Finding['severity']): string {
+  if (severity === 'blocking') {
+    return 'border-l-[var(--color-terminal-danger)]'
+  }
+  if (severity === 'non_blocking') {
+    return 'border-l-[var(--color-terminal-warning)]'
+  }
+  return 'border-l-[var(--color-terminal-cyan)]'
+}
+
 /** Renders one findings group (blocking or non-blocking) exactly as returned by the API. */
 export function FindingsSection({ title, findings, evidence, emptyMessage }: FindingsSectionProps) {
   const headingId = useId()
   const evidenceById = new Map(evidence.map((item) => [item.id, item]))
 
   return (
-    <section aria-labelledby={headingId} className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-      <h2 id={headingId} className="text-lg font-semibold text-slate-900">
-        {title} <span className="font-normal text-slate-400">({findings.length})</span>
-      </h2>
+    <section
+      aria-labelledby={headingId}
+      className="rounded-xl border border-[var(--color-terminal-border)] bg-[var(--color-terminal-panel)] p-5 sm:p-6"
+    >
+      <SectionHeader
+        id={headingId}
+        title={title}
+        count={findings.length}
+        icon={<AlertIcon />}
+      />
 
       {findings.length === 0 ? (
-        <div className="mt-3">
+        <div className="mt-4">
           <EmptyState message={emptyMessage} />
         </div>
       ) : (
@@ -45,15 +63,26 @@ export function FindingsSection({ title, findings, evidence, emptyMessage }: Fin
           {findings.map((finding) => {
             const sources = sourcesFor(finding, evidenceById)
             return (
-              <li key={finding.id} className="rounded-md border border-slate-200 p-4">
+              <li
+                key={finding.id}
+                className={`rounded-lg border border-[var(--color-terminal-border)] border-l-4 bg-[var(--color-terminal-elevated)]/40 p-4 ${accentForSeverity(finding.severity)}`}
+              >
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <h3 className="font-medium text-slate-900">{finding.title}</h3>
-                  <StatusBadge label={severityLabel(finding.severity)} tone={severityTone(finding.severity)} />
+                  <h3 className="font-medium text-[var(--color-terminal-text)]">
+                    {finding.title}
+                  </h3>
+                  <StatusBadge
+                    label={severityLabel(finding.severity)}
+                    tone={severityTone(finding.severity)}
+                  />
                 </div>
-                <p className="mt-1 text-sm text-slate-600">{finding.description}</p>
-                <p className="mt-2 text-xs text-slate-400">
+                <p className="mt-2 text-sm leading-relaxed text-[var(--color-terminal-muted)]">
+                  {finding.description}
+                </p>
+                <p className="mt-3 font-mono text-xs text-[var(--color-terminal-faint)]">
                   {finding.is_fixable ? 'Corregible' : 'No corregible automáticamente'}
-                  {sources.length > 0 && ` · Fuente: ${sources.map(evidenceSourceLabel).join(', ')}`}
+                  {sources.length > 0 &&
+                    ` · Fuente: ${sources.map(evidenceSourceLabel).join(', ')}`}
                 </p>
               </li>
             )

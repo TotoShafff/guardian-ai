@@ -1,11 +1,17 @@
 import type { BadgeTone } from '../lib/presentation'
 
 const TONE_CLASSES: Record<BadgeTone, string> = {
-  success: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
-  danger: 'bg-red-50 text-red-700 ring-red-600/20',
-  warning: 'bg-amber-50 text-amber-800 ring-amber-600/20',
-  info: 'bg-sky-50 text-sky-700 ring-sky-600/20',
-  neutral: 'bg-slate-100 text-slate-700 ring-slate-500/20',
+  success:
+    'border-[var(--color-terminal-accent-dim)] bg-[color-mix(in_srgb,var(--color-terminal-accent)_12%,transparent)] text-[var(--color-terminal-accent)]',
+  danger:
+    'border-[color-mix(in_srgb,var(--color-terminal-danger)_45%,transparent)] bg-[color-mix(in_srgb,var(--color-terminal-danger)_12%,transparent)] text-[var(--color-terminal-danger)]',
+  warning:
+    'border-[color-mix(in_srgb,var(--color-terminal-warning)_45%,transparent)] bg-[color-mix(in_srgb,var(--color-terminal-warning)_12%,transparent)] text-[var(--color-terminal-warning)]',
+  info: 'border-[color-mix(in_srgb,var(--color-terminal-cyan)_45%,transparent)] bg-[color-mix(in_srgb,var(--color-terminal-cyan)_12%,transparent)] text-[var(--color-terminal-cyan)]',
+  pending:
+    'border-[color-mix(in_srgb,var(--color-terminal-pending)_45%,transparent)] bg-[color-mix(in_srgb,var(--color-terminal-pending)_12%,transparent)] text-[var(--color-terminal-pending)]',
+  neutral:
+    'border-[var(--color-terminal-border-strong)] bg-[var(--color-terminal-elevated)] text-[var(--color-terminal-muted)]',
 }
 
 interface StatusBadgeProps {
@@ -16,7 +22,7 @@ interface StatusBadgeProps {
 export function StatusBadge({ label, tone }: StatusBadgeProps) {
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset ${TONE_CLASSES[tone]}`}
+      className={`inline-flex items-center rounded border px-2 py-0.5 font-mono text-[11px] font-medium tracking-wide uppercase ${TONE_CLASSES[tone]}`}
     >
       {label}
     </span>

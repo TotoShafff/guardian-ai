@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -19,10 +19,15 @@ describe('ReviewHistory', () => {
     )
 
     expect(screen.getByText('Historial de revisiones')).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'Consultá revisiones persistidas y recuperá su evidencia sin ejecutar nuevamente el análisis.',
+      ),
+    ).toBeInTheDocument()
     expect(screen.getByText('Todavía no hay revisiones guardadas.')).toBeInTheDocument()
   })
 
-  it('renders several reviews with translated statuses and finding counts', () => {
+  it('renders a table with several reviews and translated statuses', () => {
     render(
       <ReviewHistory
         reviews={[
@@ -49,12 +54,17 @@ describe('ReviewHistory', () => {
       />,
     )
 
-    expect(screen.getByText('demo/inventory-review')).toBeInTheDocument()
-    expect(screen.getByText('demo/checkout-review')).toBeInTheDocument()
-    expect(screen.getByText('Bloqueado')).toBeInTheDocument()
-    expect(screen.getByText('Aprobado')).toBeInTheDocument()
-    expect(screen.getByText(/2 bloqueantes · 1 no bloqueantes/)).toBeInTheDocument()
-    expect(screen.getAllByRole('button', { name: 'Ver revisión' })).toHaveLength(2)
+    const table = screen.getByRole('table')
+    expect(within(table).getByText('demo/inventory-review')).toBeInTheDocument()
+    expect(within(table).getByText('demo/checkout-review')).toBeInTheDocument()
+    expect(within(table).getByText('Bloqueado')).toBeInTheDocument()
+    expect(within(table).getByText('Aprobado')).toBeInTheDocument()
+    expect(within(table).getByText('2')).toBeInTheDocument()
+    expect(within(table).getByText('1')).toBeInTheDocument()
+    expect(within(table).getByRole('columnheader', { name: 'Fecha' })).toBeInTheDocument()
+    expect(within(table).getByRole('columnheader', { name: 'Acción' })).toBeInTheDocument()
+    // Desktop table + mobile cards both render an action button per review.
+    expect(screen.getAllByRole('button', { name: 'Ver revisión' })).toHaveLength(4)
   })
 
   it('calls onSelect when Ver revisión is clicked', async () => {
@@ -72,7 +82,7 @@ describe('ReviewHistory', () => {
       />,
     )
 
-    await user.click(screen.getByRole('button', { name: 'Ver revisión' }))
+    await user.click(screen.getAllByRole('button', { name: 'Ver revisión' })[0]!)
 
     expect(onSelect).toHaveBeenCalledTimes(1)
     expect(onSelect).toHaveBeenCalledWith('review-42')
@@ -90,7 +100,7 @@ describe('ReviewHistory', () => {
       />,
     )
 
-    expect(screen.getByRole('button', { name: 'Cargando revisión...' })).toBeDisabled()
+    expect(screen.getAllByRole('button', { name: 'Cargando revisión...' }).length).toBeGreaterThan(0)
   })
 
   it('shows an error and calls onRetry when Reintentar is clicked', async () => {

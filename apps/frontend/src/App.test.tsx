@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -36,7 +36,71 @@ beforeEach(() => {
   getReviewsMock.mockResolvedValue([])
 })
 
+async function openHistoryTab(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole('tab', { name: 'Historial' }))
+}
+
 describe('App', () => {
+  it('renders the Guardian AI logo and shortened header subtitle', () => {
+    render(<App />)
+
+    expect(screen.getByAltText('Logo de Guardian AI')).toBeInTheDocument()
+    expect(screen.getByText('Revisión de código asistida por agentes')).toBeInTheDocument()
+    expect(
+      screen.queryByText(
+        'Revisión de código asistida por agentes y evidencia determinística',
+      ),
+    ).not.toBeInTheDocument()
+    // Former green shield mark used this path; navigation icons may still use SVG.
+    expect(
+      document.querySelector('path[d="M12 3 5 6v5c0 4.5 2.8 7.8 7 9 4.2-1.2 7-4.5 7-9V6l-7-3Z"]'),
+    ).not.toBeInTheDocument()
+  })
+
+  it('shows Nueva revisión by default and does not mix the history table underneath', async () => {
+    getReviewsMock.mockResolvedValue([
+      makeReviewSummary({ target_reference: 'demo/hidden-in-new-tab' }),
+    ])
+    render(<App />)
+
+    expect(screen.getByRole('tab', { name: 'Nueva revisión' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+    expect(screen.getByRole('button', { name: /ejecutar revisión/i })).toBeInTheDocument()
+    expect(screen.queryByRole('table')).not.toBeInTheDocument()
+    expect(screen.queryByText('demo/hidden-in-new-tab')).not.toBeInTheDocument()
+    expect(screen.queryByText('Historial de revisiones')).not.toBeInTheDocument()
+  })
+
+  it('shows the history table when Historial is selected', async () => {
+    const user = userEvent.setup()
+    getReviewsMock.mockResolvedValue([
+      makeReviewSummary({
+        id: 'review-a',
+        target_reference: 'demo/inventory-review',
+        status: 'blocked',
+        blocking_findings_count: 1,
+        non_blocking_findings_count: 1,
+      }),
+      makeReviewSummary({
+        id: 'review-b',
+        target_reference: 'demo/checkout-review',
+        status: 'approved',
+      }),
+    ])
+    render(<App />)
+
+    await openHistoryTab(user)
+
+    expect(await screen.findByText('Historial de revisiones')).toBeInTheDocument()
+    const table = screen.getByRole('table')
+    expect(within(table).getByText('demo/inventory-review')).toBeInTheDocument()
+    expect(within(table).getByText('demo/checkout-review')).toBeInTheDocument()
+    expect(within(table).getByText('Bloqueado')).toBeInTheDocument()
+    expect(within(table).getByText('Aprobado')).toBeInTheDocument()
+  })
+
   it('calls the API client with the submitted form values', async () => {
     const user = userEvent.setup()
     createReviewMock.mockResolvedValue(makeReviewResponse())
@@ -153,14 +217,17 @@ describe('App', () => {
     ).toBeInTheDocument()
   })
 
-  it('renders an empty history state on load', async () => {
+  it('renders an empty history state on the Historial tab', async () => {
+    const user = userEvent.setup()
     render(<App />)
+
+    await openHistoryTab(user)
 
     expect(await screen.findByText('Todavía no hay revisiones guardadas.')).toBeInTheDocument()
     expect(getReviewsMock).toHaveBeenCalled()
   })
 
-  it('loads a historical review without calling createReview', async () => {
+  it('loads a historical review via GET, shows a detail view, and never POSTs', async () => {
     const user = userEvent.setup()
     getReviewsMock.mockResolvedValue([
       makeReviewSummary({
@@ -179,12 +246,17 @@ describe('App', () => {
     )
     render(<App />)
 
-    expect(await screen.findByText('demo/inventory-review')).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Ver revisión' }))
+    await openHistoryTab(user)
+    const table = await screen.findByRole('table')
+    expect(within(table).getByText('demo/inventory-review')).toBeInTheDocument()
+
+    await user.click(within(table).getByRole('button', { name: 'Ver revisión' }))
 
     expect(
       await screen.findByText('Revisión bloqueada: 2 hallazgos bloqueantes y 1 no bloqueantes.'),
     ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Volver al historial' })).toBeInTheDocument()
+    expect(screen.queryByRole('table')).not.toBeInTheDocument()
     expect(getReviewMock).toHaveBeenCalledWith('historic-1')
     expect(createReviewMock).not.toHaveBeenCalled()
   })
@@ -200,17 +272,71 @@ describe('App', () => {
     )
     render(<App />)
 
-    await user.click(await screen.findByRole('button', { name: 'Ver revisión' }))
+    await openHistoryTab(user)
+    const table = await screen.findByRole('table')
+    await user.click(within(table).getByRole('button', { name: 'Ver revisión' }))
 
-    expect(screen.getAllByText('Cargando revisión...').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getByText('Cargando revisión...')).toBeInTheDocument()
+    expect(screen.queryByRole('table')).not.toBeInTheDocument()
 
-    resolveReview(makeReviewResponse({ id: 'historic-1' }))
+    resolveReview(
+      makeReviewResponse({
+        id: 'historic-1',
+        decision: makeDecision({ rationale: 'Detalle histórico cargado.' }),
+      }),
+    )
+    expect(await screen.findByText('Detalle histórico cargado.')).toBeInTheDocument()
     await waitFor(() =>
       expect(screen.queryByText('Cargando revisión...')).not.toBeInTheDocument(),
     )
   })
 
-  it('refreshes the history after a successful new review', async () => {
+  it('returns to the history table when Volver al historial is pressed', async () => {
+    const user = userEvent.setup()
+    getReviewsMock.mockResolvedValue([
+      makeReviewSummary({
+        id: 'historic-1',
+        target_reference: 'demo/inventory-review',
+      }),
+    ])
+    getReviewMock.mockResolvedValue(
+      makeReviewResponse({
+        id: 'historic-1',
+        decision: makeDecision({ rationale: 'Detalle histórico.' }),
+      }),
+    )
+    render(<App />)
+
+    await openHistoryTab(user)
+    await user.click(within(await screen.findByRole('table')).getByRole('button', { name: 'Ver revisión' }))
+    expect(await screen.findByText('Detalle histórico.')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Volver al historial' }))
+
+    expect(await screen.findByRole('table')).toBeInTheDocument()
+    expect(screen.queryByText('Detalle histórico.')).not.toBeInTheDocument()
+    // List was kept in memory; no forced refetch required.
+    expect(getReviewsMock.mock.calls.length).toBeGreaterThanOrEqual(1)
+  })
+
+  it('shows a Spanish error when the historical detail request fails', async () => {
+    const user = userEvent.setup()
+    getReviewsMock.mockResolvedValue([makeReviewSummary({ id: 'historic-1' })])
+    getReviewMock.mockRejectedValue(
+      new ApiError('No se pudo cargar la revisión seleccionada.', 500),
+    )
+    render(<App />)
+
+    await openHistoryTab(user)
+    await user.click(within(await screen.findByRole('table')).getByRole('button', { name: 'Ver revisión' }))
+
+    expect(
+      await screen.findByText('No se pudo cargar la revisión seleccionada.'),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Volver al historial' })).toBeInTheDocument()
+  })
+
+  it('refreshes the history after a successful new review without leaving Nueva revisión', async () => {
     const user = userEvent.setup()
     createReviewMock.mockImplementation(async () => {
       const result = makeReviewResponse({
@@ -227,29 +353,99 @@ describe('App', () => {
     })
     render(<App />)
 
-    expect(await screen.findByText('Todavía no hay revisiones guardadas.')).toBeInTheDocument()
-
     await user.click(screen.getByRole('button', { name: /ejecutar revisión/i }))
 
-    await waitFor(() => {
-      expect(screen.getAllByText('demo/post-run-review').length).toBeGreaterThanOrEqual(2)
-    })
+    expect(await screen.findByText('demo/post-run-review')).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Nueva revisión' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+    expect(screen.queryByRole('table')).not.toBeInTheDocument()
     expect(getReviewsMock.mock.calls.length).toBeGreaterThanOrEqual(2)
+
+    await openHistoryTab(user)
+    expect(await screen.findByRole('table')).toBeInTheDocument()
+    expect(within(screen.getByRole('table')).getByText('demo/post-run-review')).toBeInTheDocument()
+  })
+
+  it('keeps the current new-review result when switching tabs', async () => {
+    const user = userEvent.setup()
+    createReviewMock.mockResolvedValue(
+      makeReviewResponse({
+        decision: makeDecision({ rationale: 'Resultado de la revisión nueva.' }),
+      }),
+    )
+    getReviewsMock.mockResolvedValue([
+      makeReviewSummary({ target_reference: 'demo/older-review' }),
+    ])
+    render(<App />)
+
+    await user.click(screen.getByRole('button', { name: /ejecutar revisión/i }))
+    expect(await screen.findByText('Resultado de la revisión nueva.')).toBeInTheDocument()
+
+    await openHistoryTab(user)
+    expect(screen.queryByText('Resultado de la revisión nueva.')).not.toBeInTheDocument()
+    const table = await screen.findByRole('table')
+    expect(within(table).getByText('demo/older-review')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('tab', { name: 'Nueva revisión' }))
+    expect(screen.getByText('Resultado de la revisión nueva.')).toBeInTheDocument()
+    // Only one report visible on Nueva revisión.
+    expect(screen.queryByText('demo/older-review')).not.toBeInTheDocument()
+  })
+
+  it('does not show two reports at once when opening a historical review', async () => {
+    const user = userEvent.setup()
+    createReviewMock.mockResolvedValue(
+      makeReviewResponse({
+        decision: makeDecision({ rationale: 'Resultado de la revisión nueva.' }),
+      }),
+    )
+    getReviewsMock.mockResolvedValue([
+      makeReviewSummary({
+        id: 'historic-1',
+        target_reference: 'demo/inventory-review',
+      }),
+    ])
+    getReviewMock.mockResolvedValue(
+      makeReviewResponse({
+        id: 'historic-1',
+        decision: makeDecision({ rationale: 'Resultado histórico distinto.' }),
+      }),
+    )
+    render(<App />)
+
+    await user.click(screen.getByRole('button', { name: /ejecutar revisión/i }))
+    expect(await screen.findByText('Resultado de la revisión nueva.')).toBeInTheDocument()
+
+    await openHistoryTab(user)
+    await user.click(within(await screen.findByRole('table')).getByRole('button', { name: 'Ver revisión' }))
+
+    expect(await screen.findByText('Resultado histórico distinto.')).toBeInTheDocument()
+    expect(screen.queryByText('Resultado de la revisión nueva.')).not.toBeInTheDocument()
   })
 
   it('shows a history error and retries on Reintentar', async () => {
     const user = userEvent.setup()
-    getReviewsMock
-      .mockRejectedValueOnce(new ApiError('falló', 500))
-      .mockResolvedValueOnce([makeReviewSummary({ target_reference: 'demo/recovered' })])
+    let shouldFail = true
+    getReviewsMock.mockImplementation(async () => {
+      if (shouldFail) {
+        throw new ApiError('falló', 500)
+      }
+      return [makeReviewSummary({ target_reference: 'demo/recovered' })]
+    })
     render(<App />)
+
+    await openHistoryTab(user)
 
     expect(
       await screen.findByText('No se pudo cargar el historial de revisiones.'),
     ).toBeInTheDocument()
 
+    shouldFail = false
     await user.click(screen.getByRole('button', { name: 'Reintentar' }))
 
-    expect(await screen.findByText('demo/recovered')).toBeInTheDocument()
+    const table = await screen.findByRole('table')
+    expect(within(table).getByText('demo/recovered')).toBeInTheDocument()
   })
 })
