@@ -33,7 +33,7 @@ def test_defaults_match_documented_values(
     assert settings.ai_provider == "mock"
 
     assert settings.openrouter_api_key is None
-    assert settings.openrouter_model == "deepseek/deepseek-v4-flash:free"
+    assert settings.openrouter_model == "cohere/north-mini-code:free"
     assert settings.openrouter_base_url == "https://openrouter.ai/api/v1"
     assert settings.openrouter_timeout_seconds == 60.0
     assert settings.openrouter_app_url is None
