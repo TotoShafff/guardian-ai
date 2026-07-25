@@ -1,4 +1,4 @@
-"FastAPI application entry point."
+"""FastAPI application entry point."""
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,18 +14,14 @@ app = FastAPI(
     ),
 )
 
-# Allows the local Vite dev server (`apps/frontend`) to call this API from the
-# browser. Limited to local dev origins only; the Docker Compose setup will
-# serve the built frontend from the same origin as the API in production, at
-# which point cross-origin requests will not be involved (see `docs/ROADMAP.md`
-# Phase 6).
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:5173",
         "http://127.0.0.1:5173",
     ],
-    allow_methods=["GET", "POST"],
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["Content-Type"],
 )
 
