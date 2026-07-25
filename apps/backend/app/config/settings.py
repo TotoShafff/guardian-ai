@@ -14,8 +14,17 @@ from pathlib import Path
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# apps/backend/app/config/settings.py -> repository root is four levels up.
-_REPO_ROOT_ENV_FILE = Path(__file__).resolve().parents[4] / ".env"
+# Prefer the repository-root `.env` (four levels up from this file in a
+# normal checkout: app/config -> app -> backend -> apps -> repo root).
+# In the Docker image the package lives at `/app/app/config/...`, which is
+# shallower than four parents, so fall back to a non-existent path and rely
+# on real environment variables supplied by Compose.
+_SETTINGS_PATH = Path(__file__).resolve()
+_REPO_ROOT_ENV_FILE = (
+    _SETTINGS_PATH.parents[4] / ".env"
+    if len(_SETTINGS_PATH.parents) > 4
+    else Path("/nonexistent/.env")
+)
 
 
 class Settings(BaseSettings):
