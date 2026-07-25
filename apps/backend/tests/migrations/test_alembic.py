@@ -47,7 +47,17 @@ def test_workflow_output_ordering_revision_follows_the_initial_schema() -> None:
 
     assert revision is not None
     assert revision.down_revision == "4e6dd0965bd5"
-    assert script_directory.get_current_head() == "7d72d643d597"
+
+
+def test_target_path_revision_follows_workflow_output_ordering() -> None:
+    config = Config(str(_ALEMBIC_INI))
+    script_directory = ScriptDirectory.from_config(config)
+
+    revision = script_directory.get_revision("c3a91f2e8b04")
+
+    assert revision is not None
+    assert revision.down_revision == "7d72d643d597"
+    assert script_directory.get_current_head() == "c3a91f2e8b04"
 
 
 def test_migration_upgrades_and_downgrades_cleanly(tmp_path: Path) -> None:

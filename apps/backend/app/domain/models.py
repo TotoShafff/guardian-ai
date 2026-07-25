@@ -154,6 +154,7 @@ class Review:
 
     id: UUID = field(default_factory=uuid4)
     target_reference: str
+    target_path: str = ""
     status: ReviewStatus
     created_at: datetime = field(default_factory=_utc_now)
     completed_at: datetime | None = None
@@ -162,3 +163,17 @@ class Review:
         _require_utc(self.created_at, "created_at")
         if self.completed_at is not None:
             _require_utc(self.completed_at, "completed_at")
+
+
+@dataclass(frozen=True, kw_only=True)
+class ReviewSummary:
+    """Lightweight listing row for a persisted review (history views)."""
+
+    id: UUID
+    target_reference: str
+    target_path: str
+    status: ReviewStatus
+    created_at: datetime
+    completed_at: datetime | None
+    blocking_findings_count: int
+    non_blocking_findings_count: int

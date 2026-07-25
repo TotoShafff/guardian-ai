@@ -62,7 +62,7 @@ def test_validate_uses_the_expected_message_for_an_empty_patch() -> None:
 
     [result] = validator.validate(_SAMPLE_CODE, "")
 
-    assert result.message == "Patch is empty"
+    assert result.message == "El parche está vacío"
 
 
 def test_validate_uses_the_expected_message_for_a_non_empty_patch() -> None:
@@ -70,7 +70,9 @@ def test_validate_uses_the_expected_message_for_a_non_empty_patch() -> None:
 
     [result] = validator.validate(_SAMPLE_CODE, _SAMPLE_PATCH)
 
-    assert result.message == "Patch accepted by deterministic mock validation"
+    assert result.message == (
+        "El parche fue aceptado por la validación determinística simulada."
+    )
 
 
 def test_validate_returns_exactly_one_result() -> None:

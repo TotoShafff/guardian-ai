@@ -1,12 +1,9 @@
-"""Real `AIProvider` adapter backed by OpenRouter's chat completions API.
+"""Real `AIProvider` adapter backed by Gemini's OpenAI-compatible API.
 
-`OpenRouterProvider` is the one real non-mock provider implementation for
-the MVP. It sends code and deterministic evidence to a configured OpenRouter
-model and translates the provider response into the domain objects expected
-by the workflow.
-
-All OpenRouter-specific request shaping, response parsing, headers, and error
-translation remain isolated in this module.
+`GeminiProvider` calls Google's Generative Language OpenAI-compatible
+`/chat/completions` endpoint and translates the response into the domain
+objects expected by the workflow. Auth, request shaping, and error
+translation stay isolated here; callers depend only on `AIProvider`.
 """
 
 import json
@@ -34,6 +31,36 @@ _LANGUAGE_RULES = (
     "translated.\n"
 )
 
+_AUTO_FIX_CRITERIA = (
+    "CRITERIO DE AUTO-CORRECCIÓN\n\n"
+    "Marcá un hallazgo como auto-corregible (`is_fixable: true`) cuando "
+    "pueda resolverse con un cambio local, pequeño y seguro en el código "
+    "mostrado, sin requerir rediseñar el sistema ni conocer archivos "
+    "externos no provistos.\n\n"
+    "Ejemplos que normalmente deben considerarse auto-corregibles:\n"
+    "- imports sin usar;\n"
+    "- validaciones de rango;\n"
+    "- guard clauses;\n"
+    "- validaciones faltantes cubiertas por tests existentes;\n"
+    "- errores simples detectados por Ruff;\n"
+    "- condiciones faltantes;\n"
+    "- excepciones esperadas por tests;\n"
+    "- cambios pequeños en una única función.\n\n"
+    "Ejemplos que normalmente NO deben considerarse auto-corregibles:\n"
+    "- rediseños amplios;\n"
+    "- cambios de arquitectura;\n"
+    "- modificaciones que afecten contratos externos;\n"
+    "- problemas que requieran conocer varios archivos no provistos;\n"
+    "- cambios con efectos secundarios inciertos;\n"
+    "- problemas donde no exista suficiente contexto para producir un "
+    "patch seguro.\n\n"
+    "Para este escenario concreto, una validación faltante de "
+    "discount_percent cubierta por tests existentes debe considerarse "
+    "auto-corregible.\n\n"
+    "No fuerces todos los hallazgos a ser corregibles. Solo los que "
+    "cumplan el criterio anterior."
+)
+
 _ANALYZE_SYSTEM_PROMPT = (
     "You are a meticulous code-review assistant for Guardian AI. Given a "
     "code snippet and a numbered list of deterministic evidence items "
@@ -41,6 +68,7 @@ _ANALYZE_SYSTEM_PROMPT = (
     "linter or test runner would miss (e.g. logic errors, security issues, "
     "unclear naming, missing validation).\n\n"
     f"{_LANGUAGE_RULES}\n"
+    f"{_AUTO_FIX_CRITERIA}\n\n"
     "Respond with ONLY a JSON array (no prose, no markdown code fences). "
     "Each element must be an object with exactly these fields:\n"
     '  "severity": one of "blocking", "non_blocking", "info" '
@@ -63,25 +91,21 @@ _PROPOSE_FIX_SYSTEM_PROMPT = (
 )
 
 
-class OpenRouterProvider(AIProvider):
-    """`AIProvider` adapter calling OpenRouter's chat completions endpoint."""
+class GeminiProvider(AIProvider):
+    """`AIProvider` adapter calling Gemini's OpenAI-compatible chat endpoint."""
 
     def __init__(
         self,
-        api_key: str | None,
+        api_key: str,
         model: str,
         base_url: str,
         timeout_seconds: float,
-        app_name: str,
-        app_url: str | None = None,
         client: httpx.Client | None = None,
     ) -> None:
         self._api_key = api_key
         self._model = model
         self._base_url = base_url.rstrip("/")
         self._timeout_seconds = timeout_seconds
-        self._app_name = app_name
-        self._app_url = app_url
         self._client = client
 
     def analyze_code(
@@ -142,18 +166,14 @@ class OpenRouterProvider(AIProvider):
     def _complete(self, system_prompt: str, user_prompt: str) -> str:
         """Send one chat completion request and return assistant text."""
         if not self._api_key or not self._api_key.strip():
-            raise AIProviderConfigurationError("OpenRouter API key is not configured")
+            raise AIProviderConfigurationError("Gemini API key is not configured")
 
         api_key = self._api_key.strip()
 
         headers = {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
-            "X-OpenRouter-Title": self._app_name,
         }
-
-        if self._app_url and self._app_url.strip():
-            headers["HTTP-Referer"] = self._app_url.strip()
 
         body: dict[str, object] = {
             "model": self._model,
@@ -167,15 +187,15 @@ class OpenRouterProvider(AIProvider):
         try:
             response = self._send_request(headers=headers, body=body)
         except httpx.TimeoutException as exc:
-            raise AIProviderRequestError("OpenRouter request timed out") from exc
+            raise AIProviderRequestError("Gemini request timed out") from exc
         except httpx.HTTPError as exc:
             raise AIProviderRequestError(
-                f"OpenRouter request failed: {exc.__class__.__name__}"
+                f"Gemini request failed: {exc.__class__.__name__}"
             ) from exc
 
         if not 200 <= response.status_code < 300:
             raise AIProviderRequestError(
-                f"OpenRouter returned HTTP {response.status_code}",
+                f"Gemini returned HTTP {response.status_code}",
                 status_code=response.status_code,
             )
 
@@ -183,33 +203,33 @@ class OpenRouterProvider(AIProvider):
             payload = response.json()
         except ValueError as exc:
             raise AIProviderResponseError(
-                "OpenRouter response was not valid JSON"
+                "Gemini response was not valid JSON"
             ) from exc
 
         return self._extract_content(payload)
 
     @staticmethod
     def _extract_content(payload: object) -> str:
-        """Extract and validate assistant content from an OpenRouter response."""
+        """Extract and validate assistant content from a Gemini response."""
         if not isinstance(payload, dict):
-            raise AIProviderResponseError("OpenRouter response was not a JSON object")
+            raise AIProviderResponseError("Gemini response was not a JSON object")
 
         choices = payload.get("choices")
         if not isinstance(choices, list) or not choices:
-            raise AIProviderResponseError("OpenRouter response has no choices")
+            raise AIProviderResponseError("Gemini response has no choices")
 
         first_choice = choices[0]
         if not isinstance(first_choice, dict):
-            raise AIProviderResponseError("OpenRouter response choice was malformed")
+            raise AIProviderResponseError("Gemini response choice was malformed")
 
         message = first_choice.get("message")
         if not isinstance(message, dict):
-            raise AIProviderResponseError("OpenRouter response has no message")
+            raise AIProviderResponseError("Gemini response has no message")
 
         content = message.get("content")
         if not isinstance(content, str) or content.strip() == "":
             raise AIProviderResponseError(
-                "OpenRouter response message has no textual content"
+                "Gemini response message has no textual content"
             )
 
         return content
@@ -259,12 +279,12 @@ class OpenRouterProvider(AIProvider):
             parsed = json.loads(content)
         except json.JSONDecodeError as exc:
             raise AIProviderResponseError(
-                "OpenRouter analysis response was not valid JSON"
+                "Gemini analysis response was not valid JSON"
             ) from exc
 
         if not isinstance(parsed, list):
             raise AIProviderResponseError(
-                "OpenRouter analysis response was not a JSON array"
+                "Gemini analysis response was not a JSON array"
             )
 
         findings = [

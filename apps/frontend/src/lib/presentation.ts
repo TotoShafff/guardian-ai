@@ -1,21 +1,28 @@
 /**
- * Presentation-only label/color mappings for backend enum values.
+ * Presentation-only label/color mappings for backend enum values and known
+ * human-readable messages.
  *
  * These never change *which* bucket a status/severity belongs to (that is
  * always decided by the backend, see `docs/DECISIONS.md` ADR-015) — they
- * only pick a human-readable label and a visual tone for it.
+ * only pick a Spanish label and a visual tone for display.
  */
 
-import type { EvidenceSeverity, EvidenceSource, ReviewStatus, ValidationStatus } from '../api/types'
+import type {
+  EvidenceSeverity,
+  EvidenceSource,
+  Finding,
+  ReviewStatus,
+  ValidationStatus,
+} from '../api/types'
 
 export type BadgeTone = 'success' | 'danger' | 'warning' | 'info' | 'neutral'
 
 const REVIEW_STATUS_LABELS: Record<ReviewStatus, string> = {
-  pending: 'Pending',
-  running: 'Running',
-  approved: 'Approved',
-  blocked: 'Blocked',
-  failed: 'Failed',
+  pending: 'Pendiente',
+  running: 'En ejecución',
+  approved: 'Aprobado',
+  blocked: 'Bloqueado',
+  failed: 'Fallido',
 }
 
 const REVIEW_STATUS_TONES: Record<ReviewStatus, BadgeTone> = {
@@ -35,9 +42,9 @@ export function reviewStatusTone(status: ReviewStatus): BadgeTone {
 }
 
 const SEVERITY_LABELS: Record<EvidenceSeverity, string> = {
-  blocking: 'Blocking',
-  non_blocking: 'Non-blocking',
-  info: 'Info',
+  blocking: 'Bloqueante',
+  non_blocking: 'No bloqueante',
+  info: 'Informativo',
 }
 
 const SEVERITY_TONES: Record<EvidenceSeverity, BadgeTone> = {
@@ -55,8 +62,8 @@ export function severityTone(severity: EvidenceSeverity): BadgeTone {
 }
 
 const VALIDATION_STATUS_LABELS: Record<ValidationStatus, string> = {
-  passed: 'Passed',
-  failed: 'Failed',
+  passed: 'Aprobado',
+  failed: 'Fallido',
   error: 'Error',
 }
 
@@ -88,6 +95,22 @@ export function evidenceSourceLabel(source: EvidenceSource): string {
   return EVIDENCE_SOURCE_LABELS[source]
 }
 
+/**
+ * Known English evidence/tool messages translated for display only.
+ * Unknown messages are returned unchanged.
+ */
+const EVIDENCE_MESSAGE_TRANSLATIONS: Record<string, string> = {
+  '`os` imported but unused': 'El módulo `os` fue importado, pero no se utiliza.',
+  'Failed: DID NOT RAISE ValueError':
+    'La prueba esperaba que se lanzara ValueError, pero la excepción no ocurrió.',
+  'The file is executable but no shebang is present':
+    'El archivo figura como ejecutable, pero no contiene una línea shebang.',
+}
+
+export function translateEvidenceMessage(message: string): string {
+  return EVIDENCE_MESSAGE_TRANSLATIONS[message] ?? message
+}
+
 /** Format an ISO timestamp for display, or an em dash when absent/invalid. */
 export function formatDateTime(value: string | null): string {
   if (value === null) {
@@ -97,8 +120,30 @@ export function formatDateTime(value: string | null): string {
   if (Number.isNaN(date.getTime())) {
     return value
   }
-  return date.toLocaleString(undefined, {
+  return date.toLocaleString('es-AR', {
     dateStyle: 'medium',
     timeStyle: 'short',
   })
+}
+
+/**
+ * One-sentence Spanish explanation of what a proposed patch addresses,
+ * derived from the related finding (no diff parsing, no new API fields).
+ */
+export function proposalFixExplanation(finding: Finding | undefined): string {
+  if (finding === undefined) {
+    return 'Propone un cambio local para el hallazgo asociado.'
+  }
+
+  const description = finding.description.trim()
+  if (description !== '') {
+    return description
+  }
+
+  const title = finding.title.trim()
+  if (title !== '') {
+    return `Corrige: ${title}.`
+  }
+
+  return 'Propone un cambio local para el hallazgo asociado.'
 }

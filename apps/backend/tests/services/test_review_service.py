@@ -6,6 +6,7 @@ real LangGraph invocation, a Ruff/Pytest subprocess, or an AI provider API
 key.
 """
 
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import MagicMock
 from uuid import uuid4
@@ -21,6 +22,7 @@ from app.domain.models import (
     FixAttempt,
     Review,
     ReviewStatus,
+    ReviewSummary,
 )
 from app.orchestrator.state import ReviewWorkflowState
 from app.persistence.repositories import ReviewRepository, ReviewResult
@@ -99,6 +101,7 @@ def test_run_review_persists_a_running_review_before_invoking_the_graph() -> Non
     added_review = repository.add.call_args[0][0]
     assert isinstance(added_review, Review)
     assert added_review.status == ReviewStatus.RUNNING
+    assert added_review.target_path == str(_TARGET_PATH)
 
 
 def test_run_review_invokes_the_graph_with_the_correct_initial_state() -> None:
@@ -275,6 +278,42 @@ def test_get_review_returns_none_when_the_repository_finds_nothing() -> None:
     result = service.get_review(uuid4())
 
     assert result is None
+
+
+def test_get_review_does_not_invoke_the_graph() -> None:
+    repository = MagicMock(spec=ReviewRepository)
+    repository.get_review_result.return_value = None
+    graph = MagicMock()
+    service, _, _ = _make_service(repository=repository, graph=graph)
+
+    service.get_review(uuid4())
+
+    graph.invoke.assert_not_called()
+
+
+def test_list_reviews_delegates_to_the_repository_without_invoking_the_graph() -> None:
+    summaries = (
+        ReviewSummary(
+            id=uuid4(),
+            target_reference="demo/a",
+            target_path="./examples/ecommerce",
+            status=ReviewStatus.BLOCKED,
+            created_at=datetime(2026, 1, 1, tzinfo=UTC),
+            completed_at=None,
+            blocking_findings_count=1,
+            non_blocking_findings_count=0,
+        ),
+    )
+    repository = MagicMock(spec=ReviewRepository)
+    repository.list_reviews.return_value = summaries
+    graph = MagicMock()
+    service, _, _ = _make_service(repository=repository, graph=graph)
+
+    result = service.list_reviews()
+
+    assert result is summaries
+    repository.list_reviews.assert_called_once_with(limit=20)
+    graph.invoke.assert_not_called()
 
 
 def test_run_review_propagates_graph_exceptions_without_updating_the_review() -> None:

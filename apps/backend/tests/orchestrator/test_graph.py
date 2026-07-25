@@ -186,7 +186,7 @@ def test_build_review_graph_executes_nodes_in_the_required_order() -> None:
 
     decision = Decision(
         status=ReviewStatus.APPROVED,
-        rationale="Review approved: no blocking findings.",
+        rationale="Revisión aprobada: 0 hallazgos bloqueantes y 0 no bloqueantes.",
     )
     nodes.make_decision = MagicMock(
         side_effect=lambda state: (

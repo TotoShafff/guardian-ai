@@ -14,7 +14,12 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.api.dependencies import get_review_service
-from app.api.schemas import ReviewCreateRequest, ReviewResponse
+from app.api.schemas import (
+    ReviewCreateRequest,
+    ReviewHistoryResponse,
+    ReviewResponse,
+    ReviewSummaryResponse,
+)
 from app.services.review_service import ReviewService
 
 router = APIRouter(prefix="/reviews", tags=["reviews"])
@@ -34,6 +39,17 @@ def create_review(
     return ReviewResponse.from_result(result)
 
 
+@router.get("", response_model=ReviewHistoryResponse)
+def list_reviews(
+    review_service: ReviewService = Depends(get_review_service),
+) -> ReviewHistoryResponse:
+    """Return recent persisted reviews for the history listing."""
+    summaries = review_service.list_reviews()
+    return ReviewHistoryResponse(
+        reviews=[ReviewSummaryResponse.from_domain(item) for item in summaries]
+    )
+
+
 @router.get("/{review_id}", response_model=ReviewResponse)
 def get_review(
     review_id: UUID,
@@ -41,7 +57,8 @@ def get_review(
 ) -> ReviewResponse:
     """Return a previously persisted review and its full workflow output.
 
-    Returns 404 if no review with `review_id` exists.
+    Loads only persisted data — never re-runs tools, LangGraph, or an AI
+    provider. Returns 404 if no review with `review_id` exists.
     """
     result = review_service.get_review(review_id)
     if result is None:

@@ -25,6 +25,7 @@ from app.persistence.database import SessionLocal
 from app.persistence.repositories import ReviewRepository
 from app.providers.base import AIProvider
 from app.providers.exceptions import AIProviderConfigurationError
+from app.providers.gemini import GeminiProvider
 from app.providers.mock import MockProvider
 from app.providers.openrouter import OpenRouterProvider
 from app.services.review_service import ReviewService
@@ -34,6 +35,7 @@ from app.tools.ruff_tool import RuffTool
 #: Supported `Settings.ai_provider` values and the constructors they select.
 _MOCK_PROVIDER_NAME = "mock"
 _OPENROUTER_PROVIDER_NAME = "openrouter"
+_GEMINI_PROVIDER_NAME = "gemini"
 
 
 def get_db_session() -> Generator[Session, None, None]:
@@ -59,14 +61,13 @@ def build_ai_provider(settings: Settings) -> AIProvider:
     """Construct the `AIProvider` selected by `settings.ai_provider`.
 
     `"mock"` (the default) selects `MockProvider`, requiring no API key or
-    network access. `"openrouter"` selects `OpenRouterProvider`, calling
-    OpenRouter's `/chat/completions` API using the `openrouter_*` settings
-    (see `docs/DECISIONS.md` ADR-010). Any other value raises
-    `AIProviderConfigurationError` immediately, rather than silently
-    falling back to a provider the operator did not ask for. Exposed as a
-    plain function of `Settings` (not just inlined in `get_ai_provider()`)
-    so provider selection can be unit tested without FastAPI's dependency
-    injection machinery.
+    network access. `"openrouter"` selects `OpenRouterProvider`. `"gemini"`
+    selects `GeminiProvider` against Google's OpenAI-compatible endpoint.
+    Any other value raises `AIProviderConfigurationError` immediately,
+    rather than silently falling back to a provider the operator did not
+    ask for. Exposed as a plain function of `Settings` (not just inlined
+    in `get_ai_provider()`) so provider selection can be unit tested
+    without FastAPI's dependency injection machinery.
     """
     provider_name = settings.ai_provider.strip().lower()
 
@@ -81,6 +82,14 @@ def build_ai_provider(settings: Settings) -> AIProvider:
             timeout_seconds=settings.openrouter_timeout_seconds,
             app_name=settings.openrouter_app_name,
             app_url=settings.openrouter_app_url,
+        )
+
+    if provider_name == _GEMINI_PROVIDER_NAME:
+        return GeminiProvider(
+            api_key=settings.gemini_api_key,
+            model=settings.gemini_model,
+            base_url=settings.gemini_base_url,
+            timeout_seconds=settings.gemini_timeout_seconds,
         )
 
     raise AIProviderConfigurationError(

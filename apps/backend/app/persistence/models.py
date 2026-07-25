@@ -51,6 +51,7 @@ class ReviewModel(Base):
         PGUUID(as_uuid=True), primary_key=True, default=uuid4
     )
     target_reference: Mapped[str] = mapped_column(nullable=False)
+    target_path: Mapped[str] = mapped_column(nullable=False, default="", server_default="")
     status: Mapped[ReviewStatus] = mapped_column(
         Enum(
             ReviewStatus,

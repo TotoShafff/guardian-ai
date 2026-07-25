@@ -82,3 +82,20 @@ export interface ReviewCreateRequest {
   target_path: string
   code: string
 }
+
+/** Mirrors `ReviewSummaryResponse` from `GET /reviews`. */
+export interface ReviewSummary {
+  id: string
+  target_reference: string
+  target_path: string
+  status: ReviewStatus
+  created_at: string
+  completed_at: string | null
+  blocking_findings_count: number
+  non_blocking_findings_count: number
+}
+
+/** Mirrors `ReviewHistoryResponse` from `GET /reviews`. */
+export interface ReviewHistoryResponse {
+  reviews: ReviewSummary[]
+}

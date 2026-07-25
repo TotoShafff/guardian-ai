@@ -1,15 +1,17 @@
 from typing import NamedTuple
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.domain.models import (
     Decision,
     Evidence,
+    EvidenceSeverity,
     Finding,
     FixAttempt,
     Review,
+    ReviewSummary,
     ValidationResult,
 )
 from app.persistence.models import (
@@ -47,6 +49,7 @@ def _to_model(review: Review) -> ReviewModel:
     return ReviewModel(
         id=review.id,
         target_reference=review.target_reference,
+        target_path=review.target_path,
         status=review.status,
         created_at=review.created_at,
         completed_at=review.completed_at,
@@ -58,6 +61,7 @@ def _to_domain(model: ReviewModel) -> Review:
     return Review(
         id=model.id,
         target_reference=model.target_reference,
+        target_path=model.target_path,
         status=model.status,
         created_at=model.created_at,
         completed_at=model.completed_at,
@@ -203,12 +207,84 @@ class ReviewRepository:
             raise ReviewNotFoundError(review.id)
 
         model.target_reference = review.target_reference
+        model.target_path = review.target_path
         model.status = review.status
         model.created_at = review.created_at
         model.completed_at = review.completed_at
 
         self._session.flush()
         return _to_domain(model)
+
+    def list_reviews(self, limit: int = 20) -> tuple[ReviewSummary, ...]:
+        """Return recent review summaries with finding counts, newest first.
+
+        Loads only review metadata and aggregated finding counts — not
+        evidence, fix attempts, or decision payloads. Does not commit or
+        roll back; the caller owns the transaction.
+        """
+        if limit < 1:
+            raise ValueError("limit must be at least 1")
+
+        finding_counts = (
+            select(
+                FindingModel.review_id.label("review_id"),
+                func.coalesce(
+                    func.sum(
+                        case(
+                            (
+                                FindingModel.severity == EvidenceSeverity.BLOCKING,
+                                1,
+                            ),
+                            else_=0,
+                        )
+                    ),
+                    0,
+                ).label("blocking_findings_count"),
+                func.coalesce(
+                    func.sum(
+                        case(
+                            (
+                                FindingModel.severity != EvidenceSeverity.BLOCKING,
+                                1,
+                            ),
+                            else_=0,
+                        )
+                    ),
+                    0,
+                ).label("non_blocking_findings_count"),
+            )
+            .group_by(FindingModel.review_id)
+            .subquery()
+        )
+
+        statement = (
+            select(
+                ReviewModel,
+                func.coalesce(finding_counts.c.blocking_findings_count, 0),
+                func.coalesce(finding_counts.c.non_blocking_findings_count, 0),
+            )
+            .outerjoin(
+                finding_counts,
+                ReviewModel.id == finding_counts.c.review_id,
+            )
+            .order_by(ReviewModel.created_at.desc())
+            .limit(limit)
+        )
+
+        rows = self._session.execute(statement).all()
+        return tuple(
+            ReviewSummary(
+                id=model.id,
+                target_reference=model.target_reference,
+                target_path=model.target_path,
+                status=model.status,
+                created_at=model.created_at,
+                completed_at=model.completed_at,
+                blocking_findings_count=int(blocking_count),
+                non_blocking_findings_count=int(non_blocking_count),
+            )
+            for model, blocking_count, non_blocking_count in rows
+        )
 
     def save_workflow_output(
         self,

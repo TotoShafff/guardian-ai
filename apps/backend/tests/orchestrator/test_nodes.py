@@ -258,6 +258,9 @@ def test_make_decision_approves_when_there_are_no_blocking_findings() -> None:
     result = nodes.make_decision(state)
 
     assert result["decision"].status == ReviewStatus.APPROVED
+    assert result["decision"].rationale == (
+        "Revisión aprobada: 0 hallazgos bloqueantes y 2 no bloqueantes."
+    )
 
 
 def test_make_decision_blocks_when_at_least_one_blocking_finding_exists() -> None:
@@ -271,6 +274,9 @@ def test_make_decision_blocks_when_at_least_one_blocking_finding_exists() -> Non
     result = nodes.make_decision(state)
 
     assert result["decision"].status == ReviewStatus.BLOCKED
+    assert result["decision"].rationale == (
+        "Revisión bloqueada: 1 hallazgos bloqueantes y 1 no bloqueantes."
+    )
 
 
 def test_make_decision_separates_blocking_and_non_blocking_findings() -> None:

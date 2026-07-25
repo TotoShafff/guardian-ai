@@ -52,8 +52,8 @@ export function FindingsSection({ title, findings, evidence, emptyMessage }: Fin
                 </div>
                 <p className="mt-1 text-sm text-slate-600">{finding.description}</p>
                 <p className="mt-2 text-xs text-slate-400">
-                  {finding.is_fixable ? 'Fixable' : 'Not automatically fixable'}
-                  {sources.length > 0 && ` · Source: ${sources.map(evidenceSourceLabel).join(', ')}`}
+                  {finding.is_fixable ? 'Corregible' : 'No corregible automáticamente'}
+                  {sources.length > 0 && ` · Fuente: ${sources.map(evidenceSourceLabel).join(', ')}`}
                 </p>
               </li>
             )

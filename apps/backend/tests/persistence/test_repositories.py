@@ -27,6 +27,7 @@ from app.domain.models import (
     FixAttempt,
     Review,
     ReviewStatus,
+    ReviewSummary,
     ValidationResult,
     ValidationStatus,
 )
@@ -51,6 +52,7 @@ from app.persistence.repositories import (
 def _make_review(**overrides: object) -> Review:
     defaults: dict[str, object] = {
         "target_reference": "feature/checkout-fix",
+        "target_path": "./examples/ecommerce",
         "status": ReviewStatus.PENDING,
         "created_at": datetime(2026, 1, 1, tzinfo=UTC),
     }
@@ -62,6 +64,7 @@ def _make_model(**overrides: object) -> ReviewModel:
     defaults: dict[str, object] = {
         "id": uuid4(),
         "target_reference": "feature/checkout-fix",
+        "target_path": "./examples/ecommerce",
         "status": ReviewStatus.PENDING,
         "created_at": datetime(2026, 1, 1, tzinfo=UTC),
         "completed_at": None,
@@ -87,6 +90,7 @@ def test_add_calls_session_add_and_flush_and_returns_a_domain_review() -> None:
     assert isinstance(result, Review)
     assert result.id == review.id
     assert result.target_reference == review.target_reference
+    assert result.target_path == review.target_path
     assert result.status == review.status
 
 
@@ -113,10 +117,92 @@ def test_get_by_id_converts_an_orm_model_to_a_domain_review() -> None:
     assert isinstance(result, Review)
     assert result.id == model.id
     assert result.target_reference == model.target_reference
+    assert result.target_path == model.target_path
     assert result.status == model.status
     assert result.created_at == model.created_at
     assert result.completed_at == model.completed_at
     session.commit.assert_not_called()
+
+
+def test_list_reviews_returns_empty_tuple_when_no_reviews_exist() -> None:
+    session = MagicMock(spec=Session)
+    execute_result = MagicMock()
+    execute_result.all.return_value = []
+    session.execute.return_value = execute_result
+    repository = ReviewRepository(session)
+
+    result = repository.list_reviews()
+
+    assert result == ()
+    session.commit.assert_not_called()
+    session.rollback.assert_not_called()
+
+
+def test_list_reviews_orders_by_created_at_descending_and_applies_limit() -> None:
+    session = MagicMock(spec=Session)
+    execute_result = MagicMock()
+    execute_result.all.return_value = []
+    session.execute.return_value = execute_result
+    repository = ReviewRepository(session)
+
+    repository.list_reviews(limit=7)
+
+    session.execute.assert_called_once()
+    statement = session.execute.call_args[0][0]
+    compiled = str(statement.compile(compile_kwargs={"literal_binds": True}))
+    assert "ORDER BY reviews.created_at DESC" in compiled
+    assert "LIMIT 7" in compiled
+    session.commit.assert_not_called()
+    session.rollback.assert_not_called()
+
+
+def test_list_reviews_maps_rows_to_review_summaries_with_counts() -> None:
+    older = _make_model(
+        target_reference="older-review",
+        created_at=datetime(2026, 1, 1, tzinfo=UTC),
+    )
+    newer = _make_model(
+        target_reference="newer-review",
+        created_at=datetime(2026, 1, 2, tzinfo=UTC),
+        completed_at=datetime(2026, 1, 2, 0, 5, tzinfo=UTC),
+        status=ReviewStatus.BLOCKED,
+    )
+    session = MagicMock(spec=Session)
+    execute_result = MagicMock()
+    execute_result.all.return_value = [
+        (newer, 2, 1),
+        (older, 0, 3),
+    ]
+    session.execute.return_value = execute_result
+    repository = ReviewRepository(session)
+
+    result = repository.list_reviews()
+
+    assert len(result) == 2
+    assert all(isinstance(item, ReviewSummary) for item in result)
+    assert result[0].id == newer.id
+    assert result[0].target_reference == "newer-review"
+    assert result[0].target_path == newer.target_path
+    assert result[0].status == ReviewStatus.BLOCKED
+    assert result[0].blocking_findings_count == 2
+    assert result[0].non_blocking_findings_count == 1
+    assert result[0].completed_at == newer.completed_at
+    assert result[1].id == older.id
+    assert result[1].blocking_findings_count == 0
+    assert result[1].non_blocking_findings_count == 3
+    session.commit.assert_not_called()
+    session.rollback.assert_not_called()
+
+
+@pytest.mark.parametrize("limit", [0, -1])
+def test_list_reviews_rejects_limit_values_below_one(limit: int) -> None:
+    session = MagicMock(spec=Session)
+    repository = ReviewRepository(session)
+
+    with pytest.raises(ValueError, match="limit"):
+        repository.list_reviews(limit=limit)
+
+    session.execute.assert_not_called()
 
 
 def test_list_recent_orders_by_created_at_descending_with_limit_and_offset() -> None:
@@ -225,6 +311,7 @@ def test_repository_methods_never_call_commit() -> None:
     repository.add(_make_review())
     repository.get_by_id(uuid4())
     repository.list_recent()
+    repository.list_reviews()
     repository.update(_make_review(status=ReviewStatus.APPROVED))
 
     session.commit.assert_not_called()

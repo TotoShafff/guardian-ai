@@ -10,7 +10,7 @@ describe('ReviewForm', () => {
     const onSubmit = vi.fn()
     render(<ReviewForm onSubmit={onSubmit} isSubmitting={false} />)
 
-    await user.click(screen.getByRole('button', { name: /run review/i }))
+    await user.click(screen.getByRole('button', { name: /ejecutar revisión/i }))
 
     expect(onSubmit).toHaveBeenCalledTimes(1)
     const payload = onSubmit.mock.calls[0][0]
@@ -24,21 +24,21 @@ describe('ReviewForm', () => {
     const onSubmit = vi.fn()
     render(<ReviewForm onSubmit={onSubmit} isSubmitting={false} />)
 
-    await user.clear(screen.getByLabelText(/target reference/i))
-    await user.click(screen.getByRole('button', { name: /run review/i }))
+    await user.clear(screen.getByLabelText(/referencia de la revisión/i))
+    await user.click(screen.getByRole('button', { name: /ejecutar revisión/i }))
 
     expect(onSubmit).not.toHaveBeenCalled()
-    expect(screen.getByRole('alert')).toHaveTextContent(/required/i)
+    expect(screen.getByRole('alert')).toHaveTextContent(/obligatorios/i)
   })
 
   it('disables the form controls while submitting', () => {
     render(<ReviewForm onSubmit={vi.fn()} isSubmitting={true} />)
-  
-    expect(screen.getByLabelText(/target reference/i)).toBeDisabled()
-    expect(screen.getByLabelText(/target path/i)).toBeDisabled()
-    expect(screen.getByLabelText(/code to review/i)).toBeDisabled()
+
+    expect(screen.getByLabelText(/referencia de la revisión/i)).toBeDisabled()
+    expect(screen.getByLabelText(/ruta del proyecto/i)).toBeDisabled()
+    expect(screen.getByLabelText(/código a revisar/i)).toBeDisabled()
     expect(
-      screen.getByRole('button', { name: /running review/i }),
+      screen.getByRole('button', { name: /ejecutando revisión/i }),
     ).toBeDisabled()
   })
 
@@ -46,12 +46,12 @@ describe('ReviewForm', () => {
     const user = userEvent.setup()
     const { rerender } = render(<ReviewForm onSubmit={vi.fn()} isSubmitting={false} />)
 
-    const referenceInput = screen.getByLabelText(/target reference/i)
+    const referenceInput = screen.getByLabelText(/referencia de la revisión/i)
     await user.clear(referenceInput)
     await user.type(referenceInput, 'my/custom-branch')
 
     rerender(<ReviewForm onSubmit={vi.fn()} isSubmitting={false} />)
 
-    expect(screen.getByLabelText(/target reference/i)).toHaveValue('my/custom-branch')
+    expect(screen.getByLabelText(/referencia de la revisión/i)).toHaveValue('my/custom-branch')
   })
 })

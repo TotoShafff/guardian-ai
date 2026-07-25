@@ -26,6 +26,7 @@ from app.domain.models import (
     FixAttempt,
     Review,
     ReviewStatus,
+    ReviewSummary,
     ValidationResult,
     ValidationStatus,
 )
@@ -58,12 +59,28 @@ def client() -> Iterator[TestClient]:
 def _make_review(**overrides: object) -> Review:
     defaults: dict[str, object] = {
         "target_reference": "feature/checkout-fix",
+        "target_path": "./sample_project",
         "status": ReviewStatus.APPROVED,
         "created_at": datetime(2026, 1, 1, tzinfo=UTC),
         "completed_at": datetime(2026, 1, 1, 0, 1, tzinfo=UTC),
     }
     defaults.update(overrides)
     return Review(**defaults)  # type: ignore[arg-type]
+
+
+def _make_summary(**overrides: object) -> ReviewSummary:
+    defaults: dict[str, object] = {
+        "id": uuid4(),
+        "target_reference": "feature/checkout-fix",
+        "target_path": "./sample_project",
+        "status": ReviewStatus.BLOCKED,
+        "created_at": datetime(2026, 1, 1, tzinfo=UTC),
+        "completed_at": datetime(2026, 1, 1, 0, 1, tzinfo=UTC),
+        "blocking_findings_count": 2,
+        "non_blocking_findings_count": 1,
+    }
+    defaults.update(overrides)
+    return ReviewSummary(**defaults)  # type: ignore[arg-type]
 
 
 def _make_review_result(review: Review) -> ReviewResult:
@@ -94,7 +111,7 @@ def _make_review_result(review: Review) -> ReviewResult:
     )
     decision = Decision(
         status=review.status,
-        rationale="Review approved: no blocking findings.",
+        rationale="Revisión aprobada: 0 hallazgos bloqueantes y 0 no bloqueantes.",
         non_blocking_findings=(finding,),
         fix_attempts=(fix_attempt,),
     )
@@ -234,3 +251,57 @@ def test_get_review_delegates_to_the_service_with_the_review_id(
     client.get(f"/api/reviews/{review.id}")
 
     mock_review_service.get_review.assert_called_once_with(review.id)
+    mock_review_service.run_review.assert_not_called()
+
+
+def test_get_reviews_returns_empty_history(
+    client: TestClient, mock_review_service: MagicMock
+) -> None:
+    mock_review_service.list_reviews.return_value = ()
+
+    response = client.get("/api/reviews")
+
+    assert response.status_code == 200
+    assert response.json() == {"reviews": []}
+    mock_review_service.list_reviews.assert_called_once_with()
+    mock_review_service.run_review.assert_not_called()
+
+
+def test_get_reviews_returns_expected_summary_structure(
+    client: TestClient, mock_review_service: MagicMock
+) -> None:
+    summary = _make_summary()
+    mock_review_service.list_reviews.return_value = (summary,)
+
+    response = client.get("/api/reviews")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body == {
+        "reviews": [
+            {
+                "id": str(summary.id),
+                "target_reference": summary.target_reference,
+                "target_path": summary.target_path,
+                "status": "blocked",
+                "created_at": "2026-01-01T00:00:00Z",
+                "completed_at": "2026-01-01T00:01:00Z",
+                "blocking_findings_count": 2,
+                "non_blocking_findings_count": 1,
+            }
+        ]
+    }
+    mock_review_service.run_review.assert_not_called()
+
+
+def test_get_historical_review_does_not_run_the_workflow(
+    client: TestClient, mock_review_service: MagicMock
+) -> None:
+    review = _make_review()
+    mock_review_service.get_review.return_value = _make_review_result(review)
+
+    response = client.get(f"/api/reviews/{review.id}")
+
+    assert response.status_code == 200
+    mock_review_service.get_review.assert_called_once_with(review.id)
+    mock_review_service.run_review.assert_not_called()

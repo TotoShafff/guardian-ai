@@ -24,7 +24,7 @@ from uuid import UUID
 
 from langgraph.graph.state import CompiledStateGraph
 
-from app.domain.models import Review, ReviewStatus
+from app.domain.models import Review, ReviewStatus, ReviewSummary
 from app.orchestrator.state import ReviewWorkflowState
 from app.persistence.repositories import ReviewRepository, ReviewResult
 
@@ -66,7 +66,11 @@ class ReviewService:
         successfully saved. No domain object is mutated in place; updates
         go through `dataclasses.replace()`.
         """
-        review = Review(target_reference=target_reference, status=ReviewStatus.RUNNING)
+        review = Review(
+            target_reference=target_reference,
+            target_path=str(target_path),
+            status=ReviewStatus.RUNNING,
+        )
         saved_review = self._review_repository.add(review)
 
         initial_state: ReviewWorkflowState = {
@@ -115,5 +119,13 @@ class ReviewService:
         )
 
     def get_review(self, review_id: UUID) -> ReviewResult | None:
-        """Return the complete persisted review result, or None if it does not exist."""
+        """Return the complete persisted review result, or None if it does not exist.
+
+        Loads only persisted data — never invokes the review graph, tools, or
+        an AI provider.
+        """
         return self._review_repository.get_review_result(review_id)
+
+    def list_reviews(self, limit: int = 20) -> tuple[ReviewSummary, ...]:
+        """Return recent review summaries for the history listing."""
+        return self._review_repository.list_reviews(limit=limit)

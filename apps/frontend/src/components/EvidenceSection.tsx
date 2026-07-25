@@ -1,7 +1,12 @@
 import { useId } from 'react'
 
 import type { Evidence } from '../api/types'
-import { evidenceSourceLabel, severityLabel, severityTone } from '../lib/presentation'
+import {
+  evidenceSourceLabel,
+  severityLabel,
+  severityTone,
+  translateEvidenceMessage,
+} from '../lib/presentation'
 import { EmptyState } from './EmptyState'
 import { StatusBadge } from './StatusBadge'
 
@@ -14,7 +19,7 @@ function formatLocation(item: Evidence): string | null {
     return null
   }
 
-  const path = item.file_path ?? 'unknown file'
+  const path = item.file_path ?? 'archivo desconocido'
   if (item.line_start === null) {
     return path
   }
@@ -30,12 +35,12 @@ export function EvidenceSection({ evidence }: EvidenceSectionProps) {
   return (
     <section aria-labelledby={headingId} className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
       <h2 id={headingId} className="text-lg font-semibold text-slate-900">
-        Evidence <span className="font-normal text-slate-400">({evidence.length})</span>
+        Evidencia <span className="font-normal text-slate-400">({evidence.length})</span>
       </h2>
 
       {evidence.length === 0 ? (
         <div className="mt-3">
-          <EmptyState message="No evidence was collected for this review." />
+          <EmptyState message="No se recopiló evidencia para esta revisión." />
         </div>
       ) : (
         <ul className="mt-4 space-y-3">
@@ -49,16 +54,18 @@ export function EvidenceSection({ evidence }: EvidenceSectionProps) {
                   </span>
                   <StatusBadge label={severityLabel(item.severity)} tone={severityTone(item.severity)} />
                 </div>
-                <p className="mt-1 text-slate-600">{item.message}</p>
+                <p className="mt-1 text-slate-600">{translateEvidenceMessage(item.message)}</p>
                 {location !== null && <p className="mt-1 font-mono text-xs text-slate-400">{location}</p>}
                 {item.suggested_fix !== null && (
                   <p className="mt-2 text-xs text-slate-600">
-                    <span className="font-medium">Suggested fix: </span>
+                    <span className="font-medium">Corrección sugerida: </span>
                     {item.suggested_fix}
                   </p>
                 )}
                 {item.confidence !== null && (
-                  <p className="mt-1 text-xs text-slate-400">Confidence: {Math.round(item.confidence * 100)}%</p>
+                  <p className="mt-1 text-xs text-slate-400">
+                    Confianza: {Math.round(item.confidence * 100)}%
+                  </p>
                 )}
               </li>
             )

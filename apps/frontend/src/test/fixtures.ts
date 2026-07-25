@@ -1,4 +1,11 @@
-import type { Decision, Evidence, Finding, FixAttempt, ReviewResponse } from '../api/types'
+import type {
+  Decision,
+  Evidence,
+  Finding,
+  FixAttempt,
+  ReviewResponse,
+  ReviewSummary,
+} from '../api/types'
 
 export function makeEvidence(overrides: Partial<Evidence> = {}): Evidence {
   return {
@@ -7,7 +14,7 @@ export function makeEvidence(overrides: Partial<Evidence> = {}): Evidence {
     source: 'ruff',
     severity: 'blocking',
     category: 'F401',
-    message: '`os` imported but unused',
+    message: '`os` imported but unused', // API keeps original tool text
     file_path: 'app/example.py',
     line_start: 1,
     line_end: null,
@@ -24,8 +31,8 @@ export function makeFinding(overrides: Partial<Finding> = {}): Finding {
     review_id: 'review-1',
     evidence_ids: ['evidence-1'],
     severity: 'blocking',
-    title: 'Unused import',
-    description: '`os` is imported but never used',
+    title: 'Importación no utilizada',
+    description: 'El módulo `os` fue importado, pero no se utiliza.',
     is_fixable: true,
     created_at: '2026-01-01T00:00:00Z',
     ...overrides,
@@ -38,7 +45,9 @@ export function makeFixAttempt(overrides: Partial<FixAttempt> = {}): FixAttempt 
     finding_id: 'finding-1',
     patch: '--- a/app/example.py\n+++ b/app/example.py\n@@ -1 +1 @@\n-import os\n',
     attempt_number: 1,
-    validation_results: [{ status: 'passed', tool: 'ruff', message: 'No issues found' }],
+    validation_results: [
+      { status: 'passed', tool: 'ruff', message: 'No se encontraron problemas' },
+    ],
     created_at: '2026-01-01T00:00:00Z',
     ...overrides,
   }
@@ -47,7 +56,7 @@ export function makeFixAttempt(overrides: Partial<FixAttempt> = {}): FixAttempt 
 export function makeDecision(overrides: Partial<Decision> = {}): Decision {
   return {
     status: 'approved',
-    rationale: 'No blocking findings were reported.',
+    rationale: 'Revisión aprobada: 0 hallazgos bloqueantes y 0 no bloqueantes.',
     blocking_findings: [],
     non_blocking_findings: [],
     fix_attempts: [],
@@ -67,6 +76,20 @@ export function makeReviewResponse(overrides: Partial<ReviewResponse> = {}): Rev
     fix_attempts: [],
     decision: makeDecision(),
     error: null,
+    ...overrides,
+  }
+}
+
+export function makeReviewSummary(overrides: Partial<ReviewSummary> = {}): ReviewSummary {
+  return {
+    id: 'review-1',
+    target_reference: 'demo/checkout-review',
+    target_path: './examples/ecommerce',
+    status: 'blocked',
+    created_at: '2026-07-25T18:40:00Z',
+    completed_at: '2026-07-25T18:41:00Z',
+    blocking_findings_count: 2,
+    non_blocking_findings_count: 1,
     ...overrides,
   }
 }

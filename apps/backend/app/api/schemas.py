@@ -24,6 +24,7 @@ from app.domain.models import (
     Finding,
     FixAttempt,
     ReviewStatus,
+    ReviewSummary,
     ValidationResult,
     ValidationStatus,
 )
@@ -181,6 +182,38 @@ class DecisionResponse(BaseModel):
                 for attempt in decision.fix_attempts
             ],
         )
+
+
+class ReviewSummaryResponse(BaseModel):
+    """API representation of a lightweight review history row."""
+
+    id: UUID
+    target_reference: str
+    target_path: str
+    status: ReviewStatus
+    created_at: datetime
+    completed_at: datetime | None
+    blocking_findings_count: int
+    non_blocking_findings_count: int
+
+    @classmethod
+    def from_domain(cls, summary: ReviewSummary) -> "ReviewSummaryResponse":
+        return cls(
+            id=summary.id,
+            target_reference=summary.target_reference,
+            target_path=summary.target_path,
+            status=summary.status,
+            created_at=summary.created_at,
+            completed_at=summary.completed_at,
+            blocking_findings_count=summary.blocking_findings_count,
+            non_blocking_findings_count=summary.non_blocking_findings_count,
+        )
+
+
+class ReviewHistoryResponse(BaseModel):
+    """API representation of the review history listing."""
+
+    reviews: list[ReviewSummaryResponse]
 
 
 class ReviewResponse(BaseModel):

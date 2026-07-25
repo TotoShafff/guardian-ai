@@ -276,14 +276,12 @@ class ReviewWorkflowNodes:
         blocking_findings: tuple[Finding, ...],
         non_blocking_findings: tuple[Finding, ...],
     ) -> str:
-        """Build a concise, deterministic rationale summarizing the decision."""
-        if status == ReviewStatus.APPROVED:
-            summary = "no blocking findings"
-        else:
-            noun = "finding" if len(blocking_findings) == 1 else "findings"
-            summary = f"{len(blocking_findings)} blocking {noun}"
-
+        """Build a concise, deterministic Spanish rationale for the decision."""
+        status_label = (
+            "aprobada" if status == ReviewStatus.APPROVED else "bloqueada"
+        )
         return (
-            f"Review {status.value}: {summary} "
-            f"({len(non_blocking_findings)} non-blocking finding(s))."
+            f"Revisión {status_label}: "
+            f"{len(blocking_findings)} hallazgos bloqueantes "
+            f"y {len(non_blocking_findings)} no bloqueantes."
         )

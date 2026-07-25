@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { ApiError, createReview, getReview } from './client'
-import type { ReviewCreateRequest, ReviewResponse } from './types'
+import { ApiError, createReview, getReview, getReviews } from './client'
+import type { ReviewCreateRequest, ReviewHistoryResponse, ReviewResponse } from './types'
 
 const REQUEST_PAYLOAD: ReviewCreateRequest = {
   target_reference: 'demo/checkout-review',
@@ -69,7 +69,7 @@ describe('createReview', () => {
   it('falls back to a generic message when detail is missing', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({}, { status: 500 })))
 
-    await expect(createReview(REQUEST_PAYLOAD)).rejects.toThrow(/status 500/)
+    await expect(createReview(REQUEST_PAYLOAD)).rejects.toThrow(/estado 500/)
   })
 
   it('throws ApiError when the response body is not valid JSON', async () => {
@@ -120,6 +120,34 @@ describe('getReview', () => {
   })
 })
 
+describe('getReviews', () => {
+  it('sends a GET request to /reviews and returns the reviews array', async () => {
+    const responseBody: ReviewHistoryResponse = {
+      reviews: [
+        {
+          id: 'review-1',
+          target_reference: 'demo/checkout-review',
+          target_path: './examples/ecommerce',
+          status: 'blocked',
+          created_at: '2026-07-25T18:40:00Z',
+          completed_at: '2026-07-25T18:41:00Z',
+          blocking_findings_count: 2,
+          non_blocking_findings_count: 1,
+        },
+      ],
+    }
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(responseBody))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await getReviews()
+
+    expect(result).toEqual(responseBody.reviews)
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit | undefined]
+    expect(url).toMatch(/\/reviews$/)
+    expect(init?.method).toBeUndefined()
+  })
+})
+
 it('throws ApiError when a successful response body is empty', async () => {
   vi.stubGlobal(
     'fetch',
@@ -133,7 +161,7 @@ it('throws ApiError when a successful response body is empty', async () => {
 
   await expect(createReview(REQUEST_PAYLOAD)).rejects.toMatchObject({
     name: 'ApiError',
-    message: 'The server returned an empty response.',
+    message: 'El servidor devolvió una respuesta vacía.',
     status: 200,
   })
 })

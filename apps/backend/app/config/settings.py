@@ -51,11 +51,22 @@ class Settings(BaseSettings):
     #: by the provider from the environment — only via this `Settings` object,
     #: constructed in `app/api/dependencies.py`.
     openrouter_api_key: str | None = None
-    openrouter_model: str = "cohere/north-mini-code:free"
+    openrouter_model: str = "nvidia/nemotron-3-ultra:free"
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
     openrouter_timeout_seconds: float = 60.0
     openrouter_app_url: str | None = None
     openrouter_app_name: str = "Guardian AI"
+
+    #: Gemini-specific settings, used only when `ai_provider == "gemini"`
+    #: (see `app.providers.gemini.GeminiProvider`). Never read directly by
+    #: the provider from the environment — only via this `Settings` object,
+    #: constructed in `app/api/dependencies.py`.
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-3.5-flash-lite"
+    gemini_base_url: str = (
+        "https://generativelanguage.googleapis.com/v1beta/openai"
+    )
+    gemini_timeout_seconds: float = 30.0
 
     tool_timeout_seconds: int = 30
     max_fix_attempts: int = 1
@@ -70,6 +81,13 @@ class Settings(BaseSettings):
     @field_validator("openrouter_timeout_seconds")
     @classmethod
     def _validate_positive_openrouter_timeout(cls, value: float) -> float:
+        if value <= 0:
+            raise ValueError("must be greater than zero")
+        return value
+
+    @field_validator("gemini_timeout_seconds")
+    @classmethod
+    def _validate_positive_gemini_timeout(cls, value: float) -> float:
         if value <= 0:
             raise ValueError("must be greater than zero")
         return value

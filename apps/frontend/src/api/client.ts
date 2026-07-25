@@ -6,7 +6,12 @@
  */
 
 import { env } from '../config/env'
-import type { ReviewCreateRequest, ReviewResponse } from './types'
+import type {
+  ReviewCreateRequest,
+  ReviewHistoryResponse,
+  ReviewResponse,
+  ReviewSummary,
+} from './types'
 
 /** Error thrown for any failed API call. */
 export class ApiError extends Error {
@@ -53,7 +58,7 @@ async function parseJsonBody(response: Response): Promise<unknown> {
     return JSON.parse(text) as unknown
   } catch {
     throw new ApiError(
-      'The server returned a response that was not valid JSON.',
+      'El servidor devolvió una respuesta que no es JSON válido.',
       response.status,
     )
   }
@@ -76,7 +81,7 @@ async function request<TResponse>(
     })
   } catch {
     throw new ApiError(
-      'Could not reach the Guardian AI API. Is the backend running?',
+      'No se pudo conectar con la API de Guardian AI. Verificá que el backend esté ejecutándose.',
       0,
     )
   }
@@ -87,7 +92,7 @@ async function request<TResponse>(
     const detail = extractDetail(body)
 
     throw new ApiError(
-      detail ?? `The API request failed with status ${response.status}.`,
+      detail ?? `La solicitud a la API falló con el estado ${response.status}.`,
       response.status,
       detail,
     )
@@ -95,7 +100,7 @@ async function request<TResponse>(
 
   if (body === null) {
     throw new ApiError(
-      'The server returned an empty response.',
+      'El servidor devolvió una respuesta vacía.',
       response.status,
     )
   }
@@ -118,4 +123,10 @@ export function getReview(reviewId: string): Promise<ReviewResponse> {
   return request<ReviewResponse>(
     `/reviews/${encodeURIComponent(reviewId)}`,
   )
+}
+
+/** `GET /reviews` — list recent persisted reviews for the history panel. */
+export async function getReviews(): Promise<ReviewSummary[]> {
+  const body = await request<ReviewHistoryResponse>('/reviews')
+  return body.reviews
 }

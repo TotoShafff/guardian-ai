@@ -33,11 +33,18 @@ def test_defaults_match_documented_values(
     assert settings.ai_provider == "mock"
 
     assert settings.openrouter_api_key is None
-    assert settings.openrouter_model == "cohere/north-mini-code:free"
+    assert settings.openrouter_model == "nvidia/nemotron-3-ultra:free"
     assert settings.openrouter_base_url == "https://openrouter.ai/api/v1"
     assert settings.openrouter_timeout_seconds == 60.0
     assert settings.openrouter_app_url is None
     assert settings.openrouter_app_name == "Guardian AI"
+
+    assert settings.gemini_api_key == ""
+    assert settings.gemini_model == "gemini-3.5-flash-lite"
+    assert settings.gemini_base_url == (
+        "https://generativelanguage.googleapis.com/v1beta/openai"
+    )
+    assert settings.gemini_timeout_seconds == 30.0
 
     assert settings.tool_timeout_seconds == 30
     assert settings.max_fix_attempts == 1
@@ -62,6 +69,13 @@ def test_environment_variables_override_defaults(
         "https://guardian.example.com",
     )
     monkeypatch.setenv("OPENROUTER_APP_NAME", "Guardian AI Test")
+    monkeypatch.setenv("GEMINI_API_KEY", "gemini-test-key")
+    monkeypatch.setenv("GEMINI_MODEL", "gemini-custom-model")
+    monkeypatch.setenv(
+        "GEMINI_BASE_URL",
+        "https://example.com/gemini/openai",
+    )
+    monkeypatch.setenv("GEMINI_TIMEOUT_SECONDS", "12.5")
     monkeypatch.setenv("TOOL_TIMEOUT_SECONDS", "15")
     monkeypatch.setenv("MAX_FIX_ATTEMPTS", "2")
 
@@ -78,6 +92,11 @@ def test_environment_variables_override_defaults(
     assert settings.openrouter_timeout_seconds == 30.5
     assert settings.openrouter_app_url == "https://guardian.example.com"
     assert settings.openrouter_app_name == "Guardian AI Test"
+
+    assert settings.gemini_api_key == "gemini-test-key"
+    assert settings.gemini_model == "gemini-custom-model"
+    assert settings.gemini_base_url == "https://example.com/gemini/openai"
+    assert settings.gemini_timeout_seconds == 12.5
 
     assert settings.tool_timeout_seconds == 15
     assert settings.max_fix_attempts == 2
@@ -132,6 +151,16 @@ def test_non_positive_openrouter_timeout_is_rejected(
 ) -> None:
     monkeypatch.setenv("DATABASE_URL", _VALID_DATABASE_URL)
     monkeypatch.setenv("OPENROUTER_TIMEOUT_SECONDS", "0")
+
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None)
+
+
+def test_non_positive_gemini_timeout_is_rejected(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("DATABASE_URL", _VALID_DATABASE_URL)
+    monkeypatch.setenv("GEMINI_TIMEOUT_SECONDS", "0")
 
     with pytest.raises(ValidationError):
         Settings(_env_file=None)

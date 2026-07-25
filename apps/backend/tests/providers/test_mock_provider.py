@@ -92,9 +92,10 @@ def test_analyze_code_uses_category_and_message_in_title_and_description() -> No
     [finding] = MockProvider().analyze_code("code", (item,))
 
     assert "F401" in finding.title
-    assert "imported but unused" in finding.title
+    assert "no se utiliza" in finding.title
     assert "F401" in finding.description
-    assert "imported but unused" in finding.description
+    assert "reportó" in finding.description
+    assert "no se utiliza" in finding.description
 
 
 def test_analyze_code_preserves_input_order() -> None:

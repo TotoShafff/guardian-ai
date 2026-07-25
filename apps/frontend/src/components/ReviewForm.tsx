@@ -33,7 +33,9 @@ export function ReviewForm({ onSubmit, isSubmitting }: ReviewFormProps) {
     event.preventDefault()
 
     if (targetReference.trim() === '' || targetPath.trim() === '' || code.trim() === '') {
-      setValidationError('Target reference, target path, and code are all required.')
+      setValidationError(
+        'La referencia de la revisión, la ruta del proyecto y el código son obligatorios.',
+      )
       return
     }
 
@@ -48,12 +50,12 @@ export function ReviewForm({ onSubmit, isSubmitting }: ReviewFormProps) {
   return (
     <form
       onSubmit={handleSubmit}
-      aria-label="Run a code review"
+      aria-label="Ejecutar una revisión de código"
       className="space-y-4 rounded-lg border border-slate-200 bg-white p-6 shadow-sm"
     >
       <div>
         <label htmlFor="target_reference" className="block text-sm font-medium text-slate-700">
-          Target reference
+          Referencia de la revisión
         </label>
         <input
           id="target_reference"
@@ -68,7 +70,7 @@ export function ReviewForm({ onSubmit, isSubmitting }: ReviewFormProps) {
 
       <div>
         <label htmlFor="target_path" className="block text-sm font-medium text-slate-700">
-          Target path
+          Ruta del proyecto
         </label>
         <input
           id="target_path"
@@ -83,7 +85,7 @@ export function ReviewForm({ onSubmit, isSubmitting }: ReviewFormProps) {
 
       <div>
         <label htmlFor="code" className="block text-sm font-medium text-slate-700">
-          Code to review
+          Código a revisar
         </label>
         <textarea
           id="code"
@@ -108,7 +110,7 @@ export function ReviewForm({ onSubmit, isSubmitting }: ReviewFormProps) {
         disabled={isSubmitting}
         className="inline-flex items-center justify-center rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-indigo-300"
       >
-        {isSubmitting ? 'Running review…' : 'Run review'}
+        {isSubmitting ? 'Ejecutando revisión...' : 'Ejecutar revisión'}
       </button>
     </form>
   )

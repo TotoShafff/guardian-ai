@@ -58,14 +58,17 @@ class MockFixValidator(FixValidator):
                 ValidationResult(
                     status=ValidationStatus.FAILED,
                     tool=_MOCK_VALIDATOR_TOOL_NAME,
-                    message="Patch is empty",
-                ),
-            )
+                message="El parche está vacío",
+            ),
+        )
 
         return (
             ValidationResult(
                 status=ValidationStatus.PASSED,
                 tool=_MOCK_VALIDATOR_TOOL_NAME,
-                message="Patch accepted by deterministic mock validation",
+                message=(
+                    "El parche fue aceptado por la validación "
+                    "determinística simulada."
+                ),
             ),
         )

@@ -28,7 +28,7 @@ export function DecisionSummary({ review }: DecisionSummaryProps) {
           id={headingId}
           className="text-lg font-semibold text-slate-900"
         >
-          Decision summary
+          Resumen de la decisión
         </h2>
 
         <StatusBadge
@@ -39,28 +39,28 @@ export function DecisionSummary({ review }: DecisionSummaryProps) {
 
       <dl className="mt-4 grid grid-cols-1 gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
         <div>
-          <dt className="font-medium text-slate-500">Target reference</dt>
+          <dt className="font-medium text-slate-500">Referencia de la revisión</dt>
           <dd className="mt-0.5 text-slate-900">
             {review.target_reference}
           </dd>
         </div>
 
         <div>
-          <dt className="font-medium text-slate-500">Review ID</dt>
+          <dt className="font-medium text-slate-500">ID de revisión</dt>
           <dd className="mt-0.5 break-all font-mono text-xs text-slate-900">
             {review.id}
           </dd>
         </div>
 
         <div>
-          <dt className="font-medium text-slate-500">Created at</dt>
+          <dt className="font-medium text-slate-500">Creada el</dt>
           <dd className="mt-0.5 text-slate-900">
             {formatDateTime(review.created_at)}
           </dd>
         </div>
 
         <div>
-          <dt className="font-medium text-slate-500">Completed at</dt>
+          <dt className="font-medium text-slate-500">Finalizada el</dt>
           <dd className="mt-0.5 text-slate-900">
             {formatDateTime(review.updated_at)}
           </dd>
@@ -68,7 +68,7 @@ export function DecisionSummary({ review }: DecisionSummaryProps) {
       </dl>
 
       <div className="mt-4">
-        <h3 className="text-sm font-medium text-slate-500">Rationale</h3>
+        <h3 className="text-sm font-medium text-slate-500">Fundamento</h3>
 
         {decision !== null ? (
           <p className="mt-1 text-sm text-slate-900">
@@ -76,7 +76,7 @@ export function DecisionSummary({ review }: DecisionSummaryProps) {
           </p>
         ) : (
           <div className="mt-1">
-            <EmptyState message="No decision has been recorded for this review yet." />
+            <EmptyState message="Todavía no se registró una decisión para esta revisión." />
           </div>
         )}
       </div>
@@ -87,7 +87,7 @@ export function DecisionSummary({ review }: DecisionSummaryProps) {
           className="mt-4 rounded-md border border-red-200 bg-red-50 px-4 py-3"
         >
           <h3 className="text-sm font-medium text-red-800">
-            Review error
+            Error de la revisión
           </h3>
           <p className="mt-1 text-sm text-red-700">
             {review.error}

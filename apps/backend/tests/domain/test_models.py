@@ -177,6 +177,7 @@ def test_review_can_be_constructed_and_defaults_are_safe() -> None:
     review = Review(target_reference="demo-diff-001", status=ReviewStatus.PENDING)
 
     assert review.target_reference == "demo-diff-001"
+    assert review.target_path == ""
     assert review.completed_at is None
     assert isinstance(review.id, UUID)
     assert review.created_at.utcoffset() == timedelta(0)
